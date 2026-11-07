@@ -33,6 +33,7 @@ export {
 } from "./readWriteBin.js";
 
 export { packHap } from "./packHap.js";
+export { resolveStripPolicy } from "./packageReleaseHap.js";
 
 export { readZip, writeZip, crc32 } from "./readWriteZip.js";
 

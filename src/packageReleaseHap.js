@@ -29,6 +29,13 @@ import { todo } from "./createTaskContext.js";
  *
  * 这两种 hap 谁会进 .app：PackageApp.getHapPathFiles() 会过滤掉「文件名含 -bin- 且
  * deviceType 含 liteWearable」的，所以 .bin 形态进不了 .app，只有文件树形态进得去。
+ *
+ * 图片素材择一：Lite 运行时对图片格式的支持随 API 级别变化 ——
+ *   API < 10  只加载 BGRA 位图（.bin），.png 是给预览器/工具看的副本
+ *   API >= 10 可直接读 .png，删除 .bin 不影响显示
+ * 两类同时打进 treeHap 会白占体积，所以按目标 API 择一保留（见 resolveStripPolicy）。
+ * 只过滤 zip 条目：磁盘上的中间产物、工程源码里的图片、以及 .bin 容器都保持原样，
+ * 这样 .bin 容器的字节基准不被改动，也能随时用 --strip-images none 对照。
  */
 
 export const name = "packageReleaseHap";
@@ -53,7 +60,7 @@ export function run(taskContext) {
     if (!taskContext.config) todo(name, "缺少 taskContext.config");
 
     const treeHap = path.join(outDir, "entry-release-lite-unsigned.hap");
-    fs.writeFileSync(treeHap, packTreeHap(taskContext.paths.binSource, taskContext.config));
+    fs.writeFileSync(treeHap, packTreeHap(taskContext));
     taskContext.paths.treeHap = treeHap;
   }
 
@@ -61,12 +68,40 @@ export function run(taskContext) {
 }
 
 /**
+ * 决定 treeHap 里要剔除哪一类图片，返回要删掉的扩展名（不含点），null = 都保留。
+ *
+ *   auto（默认）→ API < 10 删 .png 留 .bin；API >= 10 删 .bin 留 .png
+ *   png / bin   → 强制指定
+ *   none        → 两种都保留
+ */
+export function resolveStripPolicy(taskContext) {
+  const p = taskContext.stripImages ?? "auto";
+  if (p === "none") return null;
+  if (p === "png" || p === "bin") return p;
+  if (p === "auto") return Number(taskContext.apiLevel ?? 0) >= 10 ? "bin" : "png";
+  throw new Error(`未知的 --strip-images 策略：${p}`);
+}
+
+/**
  * 把 source/lite 整个目录打成 hap
  *
- * 唯一的加工点：config.json 换成紧凑单行版。里面其它 91 个文件原样塞进去。
+ * 唯一的加工点：config.json 换成紧凑单行版。里面其它文件原样塞进去。
+ * 图片择一在这里过滤条目，不删磁盘文件。
  */
-function packTreeHap(sourceRoot, config) {
-  const entries = sortEntries(collect(sourceRoot)).map((e) => {
+function packTreeHap(taskContext) {
+  const { config, paths } = taskContext;
+  const strip = resolveStripPolicy(taskContext);
+  const all = sortEntries(collect(paths.binSource));
+  const kept = strip ? all.filter((e) => !e.fileName.toLowerCase().endsWith("." + strip)) : all;
+
+  if (strip) {
+    console.log(
+      `  [strip-images] ${taskContext.stripImages ?? "auto"} → 剔除 .${strip} ` +
+        `${all.length - kept.length} 个条目，treeHap 保留 ${kept.length} 个`
+    );
+  }
+
+  const entries = kept.map((e) => {
     const full = ((e.relPath || "").replace(/^\//, "") + "/" + e.fileName).replace(/^\//, "");
 
     let content = e.content;

@@ -194,6 +194,20 @@ export function run(taskContext) {
     error("app/release", "没有 .app 产物（verifyRelease 要挂在 signReleaseApp 之后）");
   }
 
+  // ── 7. treeHap 图片素材择一是否生效 ───────────────────────────────────
+  if (paths.treeHap && fs.existsSync(paths.treeHap)) {
+    const names = readZip(fs.readFileSync(paths.treeHap)).map((e) => e.name);
+    const png = names.filter((n) => n.toLowerCase().endsWith(".png")).length;
+    const bin = names.filter((n) => n.endsWith(".bin")).length;
+    stats.treeHapImages = { png, bin, policy: taskContext.stripImages ?? "auto" };
+    info(
+      "treeHap",
+      png > 0 && bin > 0
+        ? `图片素材双份保留（.png ${png} / .bin ${bin}）`
+        : `图片素材已择一（.png ${png} / .bin ${bin}）`
+    );
+  }
+
   // ── 汇总 ──────────────────────────────────────────────────────────────
   const errors = issues.filter((i) => i.level === "ERROR");
   const warns = issues.filter((i) => i.level === "WARN");

@@ -10,7 +10,8 @@
  *   components          [{ name, dirName, buildName, pages }]，hvigor 的 name 带前导点
  *   work                中间产物目录，所有任务往这里写（绝对路径）
  *   srcConfig           源码 config.json 解析出来的对象
- *   apiLevel            目标 API 级别，驱动 ace-loader 的兼容补丁
+ *   apiLevel            目标 API 级别，驱动 ace-loader 兼容补丁与图片素材择一
+ *   stripImages         "auto"(默认) | "png" | "bin" | "none"，只作用于 treeHap 条目
  *   compileSdkVersion   → config.app.apiVersion.target
  *   compatibleSdkVersion → config.app.apiVersion.compatible
  *   config              加工过程中的 config 对象，逐任务往后传

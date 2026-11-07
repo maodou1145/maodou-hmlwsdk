@@ -21,6 +21,12 @@ import { resolveProject } from "../src/resolveProject.js";
  *   --target <n>      覆盖 app.apiVersion.target
  *   --js-out <name>   覆盖 assets/js/<名字>（单组件工程有效）
  *
+ * 图片素材择一（只影响进 .app 的 treeHap 条目，不改源码与中间产物）：
+ *   --strip-images auto  默认，按目标 API 自动选：API<10 删 .png 留 .bin，API>=10 删 .bin 留 .png
+ *   --strip-images png   强制删 .png 留 .bin
+ *   --strip-images bin   强制删 .bin 留 .png
+ *   --strip-images none  两种都保留（用于和旧产物对照）
+ *
  * 签名相关参数（不给就跳过签名，出 unsigned 包）：
  *   --p7b <file>      必给，HarmonyOS profile
  *   --p12 <file>      PKCS#12 私钥库，配合 --p12pwd
@@ -46,7 +52,14 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === "--compatible") flags.compatible = Number(argv[++i]);
   else if (argv[i] === "--target") flags.target = Number(argv[++i]);
   else if (argv[i] === "--js-out") flags.jsOut = argv[++i];
+  else if (argv[i] === "--strip-images") flags.stripImages = argv[++i];
   else args.push(argv[i]);
+}
+
+const STRIP_POLICIES = ["auto", "png", "bin", "none"];
+if (flags.stripImages !== undefined && !STRIP_POLICIES.includes(flags.stripImages)) {
+  console.error(`--strip-images 只接受 ${STRIP_POLICIES.join(" / ")}，收到 "${flags.stripImages}"`);
+  process.exit(1);
 }
 
 const target = args[0];
@@ -101,6 +114,7 @@ const taskContext = createTaskContext({
   compatibleSdkVersion: project.compatibleSdkVersion,
   apiLevel: project.apiLevel,
   sdkVersionRaw: project.sdkVersionRaw,
+  stripImages: flags.stripImages ?? "auto",
   // 没给 p7b 就是"不签"，与 Gradle 没配 signingConfig 的行为一致
   signingConfig: flags.p7b
     ? { p7b: flags.p7b, p12: flags.p12, password: flags.p12pwd, keyFile: flags.key, certPath: flags.cert }
