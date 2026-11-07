@@ -144,7 +144,7 @@ npm run build:verify -- <工程目录>
 - `.bc` 是 best-effort：WASM 不可用或单文件失败会跳过并打印带原因的警告，构建继续。
 - API >= 8 时给 ace-loader 打幂等的 CSS 通用选择器兼容补丁，备份在 `tmp/`，API < 8 自动还原。
 - Hvigor 工程的 `assets/js/<buildName>` 目录名由组件名去前导点推导，可用 `--js-out` 覆盖。
-- `.gitmodules` 仍指向上游公开的 `ace-loader` 仓库；本仓库为私有。
+- `.gitmodules` 指向上游公开的 `ace-loader` 仓库（记录 commit `6542475`）。
 - 图片择一改变了 treeHap 内容，装表前建议真机确认显示。
 - `src/ace-loader` 的图片转换用 `sharp`（带 prebuilt binary 的原生模块），部分手机 / 浏览器环境装不上。
   `src/imageToBin.js` 是与之字节一致的纯 JS 等价实现，目前供自检器和独立调用使用，尚未接入主链。
