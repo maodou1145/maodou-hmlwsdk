@@ -225,16 +225,23 @@ export function run(taskContext) {
       `treeHap images png=${stats.treeHapImages?.png ?? "?"} bin=${stats.treeHapImages?.bin ?? "?"} · ` +
       `container ${stats.containerEntries ?? "?"} entries · ERROR ${errors.length} / WARN ${warns.length}`
   );
-  for (const i of [...errors, ...warns]) log.warn(`  [${i.level}] ${i.where}: ${i.msg}`);
+  for (const i of [...errors, ...warns]) {
+    const line = `  [${i.level}] ${i.where}: ${i.msg}`;
+    if (i.level === "ERROR") log.error(line);
+    else log.warn(line);
+  }
   log.detail(`  report: ${path.join(outDir, "report.json")}`);
 
-  // 自检只报告、不阻断：能出包就出包，问题全部甩到控制台和报告里。
-  // .bc 属于尽力生成项，缺失不能让构建失败。
-  if (errors.length || warns.length) {
-    log.warn(
-      `Verify found ${errors.length} ERROR / ${warns.length} WARN — build is NOT blocked, ` +
-        `see ${path.join(outDir, "report.json")}`
+  // 自检结论：任务层不抛异常（能出包就出包），但 CLI 按报告里的 ERROR 以退出码 1 结束，
+  // 避免「真机黑屏的包」在 CI 里被判成功。.bc 属尽力生成项，只算 WARN，不会改变退出码。
+  const reportFile = path.join(outDir, "report.json");
+  if (errors.length) {
+    log.error(
+      `Verify found ${errors.length} ERROR / ${warns.length} WARN — 产物已生成，但 CLI 退出码为非 0，` +
+        `see ${reportFile}`
     );
+  } else if (warns.length) {
+    log.warn(`Verify found 0 ERROR / ${warns.length} WARN — 不影响出包，see ${reportFile}`);
   }
   return report;
 }

@@ -55,6 +55,7 @@ npm run build:verify -- <工程目录>
 | `--strip-images <policy>` | `auto`（默认）／`png`／`bin`／`none`，见下 |
 | `--verbose` | 展开 webpack 逐文件日志、NOTE、任务产物声明 |
 | `--quiet` | 只留结果行（BUILD SUCCESSFUL / FAILED）与 WARN / ERROR |
+| `--strict` | 自检出现 WARN 也让退出码变 1（默认只有 ERROR 才失败） |
 
 `--strip-images` 只过滤进 `.app` 的 treeHap 条目，不删磁盘中间产物、不动工程源码 PNG、不改 `.bin` 容器：
 
@@ -116,7 +117,8 @@ npm run build:verify -- <工程目录>
 
 `verifyRelease` 检查首页是否为 `pages/index/index`、`.bc` 魔数与版本、图片 `.bin` 头、
 `.bin` 容器、`.app` 条目、`config.json` 与 `pack.info` 的 `apiVersion`，报告写到
-`<work>/verify/report.json`。自检**只报告不阻断构建**。
+`<work>/verify/report.json`。任务层不因自检抛错（产物照样生成），但**进程退出码跟随自检结论**：
+有 ERROR 时退出码为 1（真机黑屏这类问题不能算成功），只有 WARN 时退出码为 0，加 `--strict` 则 WARN 也算失败。
 
 ## 已知边界
 

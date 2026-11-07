@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from "fs";
 import path from "path";
 
 import { runBuild, plan } from "../src/runBuild.js";
@@ -31,6 +32,7 @@ import * as log from "../src/logger.js";
  * 日志（统一前缀 `>maodouwsdk`，分级 INFO / WARN / ERROR / DEBUG）：
  *   --verbose  展开 webpack 逐文件日志、NOTE、任务产物声明
  *   --quiet    只留 WARN / ERROR
+ *   --strict   自检出现 WARN 也让退出码为 1（默认只有 ERROR 才失败）
  *   --plan     例外，输出纯任务名列表，方便脚本解析
  *
  * 签名相关参数（不给就跳过签名，出 unsigned 包）：
@@ -51,6 +53,7 @@ for (let i = 0; i < argv.length; i++) {
   if (argv[i] === "--plan") flags.plan = true;
   else if (argv[i] === "--verbose") flags.verbose = true;
   else if (argv[i] === "--quiet") flags.quiet = true;
+  else if (argv[i] === "--strict") flags.strict = true;
   else if (argv[i] === "--work") flags.work = argv[++i];
   else if (argv[i] === "--p7b") flags.p7b = argv[++i];
   else if (argv[i] === "--p12") flags.p12 = argv[++i];
@@ -140,6 +143,31 @@ const r = await runBuild(taskContext, target);
 if (!r.ok) {
   log.error(`Build stopped at :${r.failedAt}`);
   process.exit(1);
+}
+
+// 自检门禁：verifyRelease 的结论参与退出码。
+// ERROR 一律失败（真机黑屏这类问题不能算成功）；WARN 只在 --strict 下失败。
+// 产物已经生成，问题都在 report.json 里。
+const reportFile = path.join(taskContext.work, "verify", "report.json");
+let verifyReport = null;
+try {
+  verifyReport = JSON.parse(fs.readFileSync(reportFile, "utf8"));
+} catch {
+  verifyReport = null; // 没跑 verifyRelease，或报告读不到，就不做门禁
+}
+if (verifyReport) {
+  const errors = verifyReport.stats?.errors ?? 0;
+  const warns = verifyReport.stats?.warnings ?? 0;
+  if (errors > 0) {
+    log.error(`Verify gate: ${errors} ERROR / ${warns} WARN — 真机会出问题，退出码 1`);
+    log.info(`report: ${reportFile}`);
+    process.exit(1);
+  }
+  if (warns > 0 && flags.strict) {
+    log.error(`Verify gate（--strict）: ${warns} WARN — 退出码 1`);
+    log.info(`report: ${reportFile}`);
+    process.exit(1);
+  }
 }
 
 log.info(`Output ${taskContext.work}`);
