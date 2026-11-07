@@ -4,6 +4,7 @@ import { spawnSync } from "child_process";
 
 import { resolveTools, resolveNode } from "./findTools.js";
 import { ensureCssCompat } from "./aceLoaderCompat.js";
+import * as log from "./logger.js";
 
 /**
  * 调 node + ace-loader/webpack 编译 JS/HML/CSS
@@ -36,7 +37,7 @@ export function compileJs(opts) {
   // 只在高 API 时放宽，API 6/7 工程保持原样，字节一致性不受影响。
   ensureCssCompat(tools.aceLoader, {
     apiLevel: opts.apiLevel,
-    log: opts.log ?? console.log
+    log: opts.log ?? log.info
   });
 
   const webpackBin = path.join(tools.aceLoader, "node_modules", "webpack", "bin", "webpack.js");
@@ -108,6 +109,9 @@ export function compileJs(opts) {
   // 不设 cwd 的话，它会去 hmlwsdk 根目录找，找不到就静默不转译 ——
   // 结果是产物里没有 "use strict"、没有被 babel 处理过的模块，
   // 模块 ID 也跟着错位（实测 app.js 少 2 字节、index.js 少 414 字节）。
+  log.debug(`webpack cmd: ${node} ${args.join(" ")}`);
+  log.debug(`webpack cwd: ${tools.aceLoader}`);
+  const t0 = Date.now();
   const r = spawnSync(node, args, {
     encoding: "utf8",
     env,
@@ -116,6 +120,11 @@ export function compileJs(opts) {
   });
 
   const ok = (r.stdout ?? "").includes("COMPILE RESULT:SUCCESS");
+  // 子进程的几十行输出以前被 spawnSync 全吞了，这里逐行转发并分级：
+  // COMPILE RESULT / ERROR 始终可见，loader 逐文件日志与 NOTE 在 --verbose 下展开。
+  log.childOutput(r.stdout);
+  log.childOutput(r.stderr);
+  log.info(`webpack ${ok ? "SUCCESS" : "FAIL"} · exit=${r.status ?? -1} · ${log.formatMs(Date.now() - t0)}`);
 
   return {
     ok,

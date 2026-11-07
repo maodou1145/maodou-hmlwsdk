@@ -6,6 +6,7 @@ import { writeZip } from "./readWriteZip.js";
 import { stringifyConfigMinified } from "./processConfig.js";
 import { collect, sortEntries } from "./generateReleaseJsBin.js";
 import { todo } from "./createTaskContext.js";
+import * as log from "./logger.js";
 
 /**
  * packageReleaseHap —— 出 hap（release 变体要出两种形态）
@@ -95,8 +96,8 @@ function packTreeHap(taskContext) {
   const kept = strip ? all.filter((e) => !e.fileName.toLowerCase().endsWith("." + strip)) : all;
 
   if (strip) {
-    console.log(
-      `  [strip-images] ${taskContext.stripImages ?? "auto"} → 剔除 .${strip} ` +
+    log.info(
+      `strip-images=${taskContext.stripImages ?? "auto"} → 剔除 .${strip} ` +
         `${all.length - kept.length} 个条目，treeHap 保留 ${kept.length} 个`
     );
   }

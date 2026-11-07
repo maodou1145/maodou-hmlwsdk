@@ -60,3 +60,6 @@ export {
 
 // ace-loader 按 API 级别的兼容补丁
 export { ensureCssCompat, restoreCssCompat } from "./aceLoaderCompat.js";
+
+// 构建日志（统一前缀 >maodouwsdk）
+export * as logger from "./logger.js";

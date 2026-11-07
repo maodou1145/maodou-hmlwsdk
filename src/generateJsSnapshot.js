@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+import * as log from "./logger.js";
+
 /**
  * 把一个目录下所有 .js 编成同名 .bc（真机 JRRY v24 字节码）
  *
@@ -36,12 +38,9 @@ function collectJsFiles(dir, found = []) {
 
 function warnSkipped(skipped, totalFiles) {
   if (!skipped.length) return;
-  console.warn(
-    `\n[bc] ⚠ 警告：${skipped.length}/${totalFiles} 个 JS 没能生成 .bc，已跳过，构建继续。\n` +
-      `[bc]    设备仍可读 JS 源码；但 API < 10 的设备可能受影响，建议按下面原因修掉：\n` +
-      skipped.map((s) => `[bc]      - ${path.basename(s.file)}：${s.reason}`).join("\n") +
-      "\n"
-  );
+  log.warn(`快照跳过 ${skipped.length}/${totalFiles} 个 JS，构建继续（设备仍可读 JS 源码）`);
+  log.warn(`  API < 10 设备可能受影响，原因如下：`);
+  for (const s of skipped) log.warn(`  - ${path.basename(s.file)}: ${s.reason}`);
 }
 
 /**
@@ -53,6 +52,7 @@ export async function generateJsSnapshot(dir) {
   const files = collectJsFiles(dir).sort();
   const written = [];
   const skipped = [];
+  const t0 = Date.now();
   let totalBytes = 0;
 
   if (!files.length) return { count: 0, totalFiles: 0, totalBytes: 0, files: [], skipped };
@@ -69,6 +69,7 @@ export async function generateJsSnapshot(dir) {
   if (moduleError) {
     for (const file of files) skipped.push({ file, reason: `WASM 快照模块不可用：${moduleError}` });
     warnSkipped(skipped, files.length);
+    log.info(`快照 0/${files.length} 个 .bc · 0 B · ${log.formatMs(Date.now() - t0)}`);
     return { count: 0, totalFiles: files.length, totalBytes: 0, files: [], skipped };
   }
 
@@ -85,5 +86,9 @@ export async function generateJsSnapshot(dir) {
   }
 
   warnSkipped(skipped, files.length);
+  log.info(
+    `快照 ${written.length}/${files.length} 个 .bc · ${totalBytes.toLocaleString()} B · ` +
+      `${log.formatMs(Date.now() - t0)}`
+  );
   return { count: written.length, totalFiles: files.length, totalBytes, files: written, skipped };
 }

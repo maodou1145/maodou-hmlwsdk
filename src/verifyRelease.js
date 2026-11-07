@@ -5,6 +5,7 @@ import { readBin } from "./readWriteBin.js";
 import { readZip } from "./readWriteZip.js";
 import { inspectBin } from "./imageToBin.js";
 import { todo } from "./createTaskContext.js";
+import * as log from "./logger.js";
 
 /**
  * 轻量校验 .bc 头（不 import WASM 模块，保证自检器在 WASM 不可用时也能跑）
@@ -219,19 +220,20 @@ export function run(taskContext) {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, "report.json"), JSON.stringify(report, null, 2));
 
-  console.log(
-    `  自检：API ${apiLevel} · JS ${stats.jsFiles} / .bc ${stats.bcFiles} / 图片 ${stats.imageBins} bin + ${stats.pngFiles} png · ` +
-      `容器 ${stats.containerEntries ?? "?"} 条目 · ERROR ${errors.length} / WARN ${warns.length}`
+  log.info(
+    `Verify API ${apiLevel} · JS ${stats.jsFiles} / .bc ${stats.bcFiles} / ` +
+      `treeHap images png=${stats.treeHapImages?.png ?? "?"} bin=${stats.treeHapImages?.bin ?? "?"} · ` +
+      `container ${stats.containerEntries ?? "?"} entries · ERROR ${errors.length} / WARN ${warns.length}`
   );
-  for (const i of [...errors, ...warns]) console.log(`    [${i.level}] ${i.where}: ${i.msg}`);
-  console.log(`  报告：${path.join(outDir, "report.json")}`);
+  for (const i of [...errors, ...warns]) log.warn(`  [${i.level}] ${i.where}: ${i.msg}`);
+  log.detail(`  report: ${path.join(outDir, "report.json")}`);
 
   // 自检只报告、不阻断：能出包就出包，问题全部甩到控制台和报告里。
   // .bc 属于尽力生成项，缺失不能让构建失败。
   if (errors.length || warns.length) {
-    console.warn(
-      `  ⚠ 自检：${errors.length} 个 ERROR / ${warns.length} 个 WARN（不阻断构建，包已正常产出）` +
-        `，详见 ${path.join(outDir, "report.json")}`
+    log.warn(
+      `Verify found ${errors.length} ERROR / ${warns.length} WARN — build is NOT blocked, ` +
+        `see ${path.join(outDir, "report.json")}`
     );
   }
   return report;

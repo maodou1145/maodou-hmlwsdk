@@ -49,7 +49,7 @@ export function ensureCssCompat(aceLoaderDir, opts = {}) {
   if (!(apiLevel >= 8)) {
     if (fs.existsSync(backupPath(aceLoaderDir))) {
       restoreCssCompat(aceLoaderDir);
-      log("[compat] API < 8：已还原 ace-loader 的原始 CSS 校验器");
+      log("[compat] API < 8: restored original CSS selector validator");
     }
     return false;
   }
@@ -76,7 +76,7 @@ export function ensureCssCompat(aceLoaderDir, opts = {}) {
 
   src = src.replace(ORIGINAL, RELAXED);
   fs.writeFileSync(file, src);
-  log(`[compat] API ${apiLevel}：已放宽 ace-loader 的 CSS 通用选择器校验（备份 tmp/${path.basename(backup)}）`);
+  log(`[compat] API ${apiLevel}: CSS universal selector check relaxed (backup tmp/${path.basename(backup)})`);
   return true;
 }
 

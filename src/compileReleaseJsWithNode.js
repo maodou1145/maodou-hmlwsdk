@@ -4,6 +4,7 @@ import path from "path";
 import { compileJs } from "./runWebpack.js";
 import { generateJsSnapshot } from "./generateJsSnapshot.js";
 import { todo } from "./createTaskContext.js";
+import * as log from "./logger.js";
 
 /**
  * compileReleaseJsWithNode —— node + webpack 编译
@@ -80,11 +81,9 @@ export async function run(taskContext) {
     });
 
     if (!r.ok) {
+      // webpack 的完整输出已由 runWebpack.js 逐行转发，这里只给结论，避免重复刷屏
       throw new Error(
-        `${name} 失败：组件 ${comp.name}（webpack 返回 ${r.code}）\n` +
-          (r.stderr ?? "").slice(-2000) +
-          "\n" +
-          (r.stdout ?? "").slice(-2000)
+        `${name} 失败：组件 ${comp.name}（webpack 返回 ${r.code}），详细原因见上方 webpack 日志`
       );
     }
 
@@ -104,8 +103,30 @@ export async function run(taskContext) {
     if (!snapped.totalFiles) {
       throw new Error(`${name}: ${buildDir} 下没有生成任何 .js，webpack 产物不对`);
     }
+
+    const counts = countByExt(buildDir);
+    log.info(
+      `Component ${comp.name}: ${Object.entries(counts).map(([k, v]) => `${k}=${v}`).join(" · ")}` +
+        ` · snapshot ${snapped.count}/${snapped.totalFiles}`
+    );
   }
 
   taskContext.paths.jsBuild = sourceRoot;
   return sourceRoot;
+}
+
+/** 按扩展名统计构建目录，给日志一个直观的产物概览 */
+function countByExt(dir) {
+  const out = {};
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else {
+        const ext = path.extname(e.name).toLowerCase() || "(none)";
+        out[ext] = (out[ext] ?? 0) + 1;
+      }
+    }
+  })(dir);
+  return out;
 }

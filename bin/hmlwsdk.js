@@ -4,6 +4,7 @@ import path from "path";
 import { runBuild, plan } from "../src/runBuild.js";
 import { createTaskContext } from "../src/createTaskContext.js";
 import { resolveProject } from "../src/resolveProject.js";
+import * as log from "../src/logger.js";
 
 /**
  * hmlwsdk 命令行入口
@@ -27,6 +28,11 @@ import { resolveProject } from "../src/resolveProject.js";
  *   --strip-images bin   强制删 .bin 留 .png
  *   --strip-images none  两种都保留（用于和旧产物对照）
  *
+ * 日志（统一前缀 `>maodouwsdk`，分级 INFO / WARN / ERROR / DEBUG）：
+ *   --verbose  展开 webpack 逐文件日志、NOTE、任务产物声明
+ *   --quiet    只留 WARN / ERROR
+ *   --plan     例外，输出纯任务名列表，方便脚本解析
+ *
  * 签名相关参数（不给就跳过签名，出 unsigned 包）：
  *   --p7b <file>      必给，HarmonyOS profile
  *   --p12 <file>      PKCS#12 私钥库，配合 --p12pwd
@@ -43,6 +49,8 @@ const args = [];
 
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === "--plan") flags.plan = true;
+  else if (argv[i] === "--verbose") flags.verbose = true;
+  else if (argv[i] === "--quiet") flags.quiet = true;
   else if (argv[i] === "--work") flags.work = argv[++i];
   else if (argv[i] === "--p7b") flags.p7b = argv[++i];
   else if (argv[i] === "--p12") flags.p12 = argv[++i];
@@ -57,8 +65,10 @@ for (let i = 0; i < argv.length; i++) {
 }
 
 const STRIP_POLICIES = ["auto", "png", "bin", "none"];
+log.configure({ verbose: flags.verbose, quiet: flags.quiet });
+
 if (flags.stripImages !== undefined && !STRIP_POLICIES.includes(flags.stripImages)) {
-  console.error(`--strip-images 只接受 ${STRIP_POLICIES.join(" / ")}，收到 "${flags.stripImages}"`);
+  log.error(`--strip-images 只接受 ${STRIP_POLICIES.join(" / ")}，收到 "${flags.stripImages}"`);
   process.exit(1);
 }
 
@@ -66,22 +76,25 @@ const target = args[0];
 const projectDir = args[1];
 
 if (!target) {
-  console.error("用法: hmlwsdk <任务名> <工程目录> [--work 目录] [--plan]");
-  console.error("例如: hmlwsdk signReleaseApp /path/to/apps/devdemo/devdemo");
-  console.error("      hmlwsdk --plan signReleaseApp");
+  log.error("用法: hmlwsdk <任务名> <工程目录> [--work 目录] [--plan]");
+  log.error("例如: hmlwsdk signReleaseApp /path/to/apps/devdemo/devdemo");
+  log.error("      hmlwsdk --plan signReleaseApp");
   process.exit(1);
 }
 
-// --plan 只需要任务名，不需要工程目录
+// --plan 只输出任务名，保持纯文本便于脚本解析
 if (flags.plan) {
   for (const name of plan(target)) console.log(name);
   process.exit(0);
 }
 
 if (!projectDir) {
-  console.error("缺少工程目录。用法: hmlwsdk <任务名> <工程目录>");
+  log.error("缺少工程目录。用法: hmlwsdk <任务名> <工程目录>");
   process.exit(1);
 }
+
+log.info(`maodouwsdk · Node ${process.version} · ${process.platform} · ${flags.verbose ? "verbose" : "normal"}`);
+log.info(`Project ${path.resolve(projectDir)}`);
 
 const root = path.resolve(projectDir);
 
@@ -91,15 +104,16 @@ const project = resolveProject(root, {
   ...(flags.jsOut ? { jsOut: flags.jsOut } : {})
 });
 
-console.log(
-  `工程布局：${project.layout}   模块：${project.moduleName}   ` +
-    `SDK：${project.sdkVersionRaw} → API ${project.apiLevel}`
+log.info(
+  `Layout ${project.layout} · module ${project.moduleName} · ` +
+    `SDK ${project.sdkVersionRaw} → API ${project.apiLevel}`
 );
-console.log(
-  `apiVersion：compatible=${project.compatibleSdkVersion} target=${project.compileSdkVersion}`
+log.info(
+  `apiVersion compatible=${project.compatibleSdkVersion} target=${project.compileSdkVersion} · ` +
+    `strip-images=${flags.stripImages ?? "auto"}`
 );
 for (const c of project.components) {
-  console.log(`组件：${c.name} → 源码 js/${c.dirName} → 产物 assets/js/${c.buildName}`);
+  log.info(`Component ${c.name} → src js/${c.dirName} → out assets/js/${c.buildName}`);
 }
 
 const taskContext = createTaskContext({
@@ -124,8 +138,8 @@ const taskContext = createTaskContext({
 const r = await runBuild(taskContext, target);
 
 if (!r.ok) {
-  console.error(`\n构建失败，卡在 ${r.failedAt}`);
+  log.error(`Build stopped at :${r.failedAt}`);
   process.exit(1);
 }
 
-console.log(`\n产物目录：${taskContext.work}`);
+log.info(`Output ${taskContext.work}`);
