@@ -86,6 +86,23 @@ export function isSupportedPng(buf) {
 }
 
 /**
+ * 解出裸像素，供图片转 .bin 复用（不重新编码，不改动任何字节）。
+ *
+ * 与 compressPng 共用同一套 PNG chunk 解析 / 反滤波实现，避免两处规则漂移。
+ * @returns {{width:number,height:number,bpp:number,colorType:number,pixels:Buffer}|null}
+ */
+export function decodePngPixels(input) {
+  const ihdr = parseHeader(input);
+  if (!ihdr) return null;
+  const { width, height, bpp, raw } = ihdr;
+  const stride = width * bpp;
+  const idat = Buffer.concat(readChunks(input).filter((c) => c.type === "IDAT").map((c) => c.data));
+  const pixels = unfilter(pako.inflate(idat), stride, height, bpp);
+  if (!pixels) return null;
+  return { width, height, bpp, colorType: raw[9], pixels };
+}
+
+/**
  * 读文件头，同时把不支持的形态挡在外面
  * @returns {{width:number,height:number,bpp:number,raw:Buffer}|null}
  */

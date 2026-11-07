@@ -95,12 +95,13 @@ export async function run(taskContext) {
     }
     fs.rmSync(path.join(buildDir, "_releaseMap"), { recursive: true, force: true });
 
-    // webpack 只出 .js，真机要的 .bc 在这里补。
+    // webpack 只出 .js，.bc 在这里尽力补（best-effort：失败只警告、不阻断构建）。
     // ace-loader 的 SnapshotPlugin（exec Windows 专属 exe 的那个）已经被
     // --isPreview=true 关掉，换成进程内的 jerry-parser-wasm。
     // 实测（devdemo debug 22 个文件）397 ms，平均 18 ms/个，比每次 exec 起进程还快。
     const snapped = await generateJsSnapshot(buildDir);
-    if (!snapped.count) {
+    // 只有「webpack 一个 .js 都没产出」才是真错误；.bc 全失败属于可降级的跳过
+    if (!snapped.totalFiles) {
       throw new Error(`${name}: ${buildDir} 下没有生成任何 .js，webpack 产物不对`);
     }
   }

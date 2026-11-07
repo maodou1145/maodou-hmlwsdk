@@ -13,7 +13,8 @@
   "scripts": {
     "build:hap": "node bin/hmlwsdk.js packageReleaseHap",
     "build:app": "node bin/hmlwsdk.js packageReleaseApp",
-    "build:signedApp": "node bin/hmlwsdk.js signReleaseApp"
+    "build:signedApp": "node bin/hmlwsdk.js signReleaseApp",
+    "build:verify": "node bin/hmlwsdk.js verifyRelease"
   },
   "dependencies": {
     "json5": "^2.2.3",
