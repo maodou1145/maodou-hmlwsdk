@@ -10,10 +10,10 @@ import path from "path";
  *   产物与那个 exe 逐字节一致（devdemo 22 个真实 bundle 实测）。
  *   ace-loader 侧的 SnapshotPlugin 已经用 --isPreview=true 关掉了，见 src/runWebpack.js。
  *
- * ★ best-effort（毛豆 2026-11-07）：能生成就生成，生成不了就跳过 + 甩一段警告，
- *   绝不让 .bc 失败拖垮整个构建。真机在 API 10+ 本来就能直接读 JS 源码，
- *   .bc 是加速项不是必需项。WASM 模块整体不可用（比如手机端缺失 / 架构不支持）
- *   时同样降级，只是把全部文件列进警告。
+ * best-effort 策略：能生成就全量生成；单个文件失败则跳过并打印带原因的警告；
+ * WASM 模块整体不可用时（如手机端缺失 / 架构不支持）全部跳过并列出受影响文件。
+ * 任何情况下都不让 .bc 失败阻断构建 —— API 10+ 运行时可直接读 JS 源码，
+ * .bc 属于加速项而非必需产物。
  *
  * 覆盖范围跟 SnapshotPlugin 对齐：它遍历 webpack assets 里所有 .js 生成 .bc，
  * 这里遍历构建目录下所有 .js —— webpack 的 assets 都会落盘，两者等价。

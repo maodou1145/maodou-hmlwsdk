@@ -24,19 +24,19 @@ function checkBcHeader(buf) {
  * 作为独立入口任务：verifyRelease → signReleaseApp → ... 整条链，跑完自动校验。
  *   node bin/hmlwsdk.js verifyRelease <工程目录>
  *
- * 规则里有两条来自毛豆 2026-11-07 手动补进长期记忆的真机结论：
+ * Lite Wearable 运行时的三条已知行为：
  *
- *   1. 「工程首页必须叫 index，config.json 中任何配置都无效」
- *      → 设备固定加载 pages/index/index，config 里写了别的也没用。
- *        pages 里没有这一项 = 真机黑屏，直接判 ERROR。
+ *   1. 设备固定加载 pages/index/index 作为首页，config.json 里配置的首页不生效。
+ *      pages 缺少这一项会导致真机黑屏，判 ERROR。
  *
- *   2. 「js 48KB 非硬性需求，仅影响 api10 以下设备安装运行」
- *      加上「api10 及以上可读 png 或 bin，删 bin 不影响显示」
- *      → 48KB 只做统计不判错；图片 .bin 在 API 10+ 可选（有则校验格式头）。
+ *   2. JS 48KB 不是硬性限制，只对 API < 10 的运行有影响；
+ *      因此这里只统计体积，不判错。
  *
- *   ⚠ .bc 按毛豆 2026-11-07 的要求「还是要生成一下的，尽力」处理：
- *      构建链 best-effort 生成（见 generateJsSnapshot.js），自检这里同样只报
- *      WARN —— 缺、空、魔数不对都列出来，但**绝不阻断构建**。
+ *   3. API 10+ 可直接读 PNG，删除图片 .bin 不影响显示；
+ *      所以图片 .bin 在 API 10+ 可选（存在时校验格式头）。
+ *
+ *   .bc 采用 best-effort 策略：构建链尽力生成（见 generateJsSnapshot.js），
+ *   自检对缺失 / 空文件 / 魔数异常一律只报 WARN，不阻断构建。
  *
  * 其余检查：.bin 私有容器可解析且包名一致、.app 只含 hap + pack.info、
  * config.json 与 pack.info 的 apiVersion 一致、存在的文件格式头正确。
@@ -213,7 +213,7 @@ export function run(taskContext) {
   console.log(`  报告：${path.join(outDir, "report.json")}`);
 
   // 自检只报告、不阻断：能出包就出包，问题全部甩到控制台和报告里。
-  // 毛豆 2026-11-07：.bc 这类「尽力生成」的东西尤其不能因为缺失就让构建失败。
+  // .bc 属于尽力生成项，缺失不能让构建失败。
   if (errors.length || warns.length) {
     console.warn(
       `  ⚠ 自检：${errors.length} 个 ERROR / ${warns.length} 个 WARN（不阻断构建，包已正常产出）` +
