@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { spawnSync } from "child_process";
+import { spawn } from "child_process";
+import { createInterface } from "readline";
 
 import { resolveTools, resolveNode } from "./findTools.js";
 import { ensureCssCompat } from "./aceLoaderCompat.js";
@@ -29,7 +30,7 @@ import * as log from "./logger.js";
  * 注意：webpack.lite.config.js 第 138 行会 deleteFolderRecursive(buildPath)，
  * 所以 opts.buildDir 必须是专用目录，不要指到别的产物目录上。
  */
-export function compileJs(opts) {
+export async function compileJs(opts) {
   const tools = opts.tools ?? resolveTools();
   const node = opts.node ?? resolveNode();
 
@@ -112,25 +113,47 @@ export function compileJs(opts) {
   log.debug(`webpack cmd: ${node} ${args.join(" ")}`);
   log.debug(`webpack cwd: ${tools.aceLoader}`);
   const t0 = Date.now();
-  const r = spawnSync(node, args, {
-    encoding: "utf8",
-    env,
-    cwd: tools.aceLoader,
-    maxBuffer: 32 * 1024 * 1024
-  });
 
-  const ok = (r.stdout ?? "").includes("COMPILE RESULT:SUCCESS");
-  // 子进程的几十行输出以前被 spawnSync 全吞了，这里逐行转发并分级：
-  // COMPILE RESULT / ERROR 始终可见，loader 逐文件日志与 NOTE 在 --verbose 下展开。
-  log.childOutput(r.stdout);
-  log.childOutput(r.stderr);
-  log.info(`webpack ${ok ? "SUCCESS" : "FAIL"} · exit=${r.status ?? -1} · ${log.formatMs(Date.now() - t0)}`);
+  // 流式 spawn：webpack 出一行就转发一行，不再等进程结束。
+  // 之前用 spawnSync，十几秒里终端一片空白，只能靠心跳猜它还在不在跑。
+  const child = spawn(node, args, { env, cwd: tools.aceLoader });
+  const feed = log.childLineStream();
+  const outLines = [];
+  const errLines = [];
+  const pump = (stream, sink) => {
+    createInterface({ input: stream }).on("line", (line) => {
+      sink.push(line);
+      feed(line);
+    });
+  };
+  pump(child.stdout, outLines);
+  pump(child.stderr, errLines);
+
+  // 兜底：webpack 万一挂死，10 分钟后强杀，避免构建永远卡在这一步
+  const killer = setTimeout(() => {
+    log.warn("webpack 超过 10 分钟未结束，强制结束子进程");
+    child.kill();
+  }, 10 * 60 * 1000);
+  if (killer.unref) killer.unref();
+
+  const code = await new Promise((resolve) => {
+    child.on("error", (e) => {
+      errLines.push(String(e.message ?? e));
+      resolve(-1);
+    });
+    child.on("close", (c) => resolve(c ?? -1));
+  });
+  clearTimeout(killer);
+
+  const stdout = outLines.join("\n");
+  const ok = stdout.includes("COMPILE RESULT:SUCCESS");
+  log.info(`webpack ${ok ? "SUCCESS" : "FAIL"} · exit=${code} · ${log.formatMs(Date.now() - t0)}`);
 
   return {
     ok,
-    code: r.status ?? -1,
-    stdout: r.stdout ?? "",
-    stderr: r.stderr ?? "",
+    code,
+    stdout,
+    stderr: errLines.join("\n"),
     buildDir: opts.buildDir
   };
 }

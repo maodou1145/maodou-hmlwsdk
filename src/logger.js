@@ -69,7 +69,9 @@ export function detail(msg) {
 }
 
 export function taskStart(name, index, total, produces) {
-  if (!quiet) console.log(`${PREFIX} ${INDENT} > Task :${name} [${index}/${total}]`);
+  // 进度：已跑 / 总数 + 百分比，长链构建时一眼看出还剩多少
+  const pct = total ? Math.round((index / total) * 100) : 0;
+  if (!quiet) console.log(`${PREFIX} ${INDENT} > Task :${name} [${index}/${total} · ${pct}%]`);
   if (produces) debug(`produces: ${produces}`);
 }
 
@@ -78,15 +80,15 @@ export function taskDone(name, ms) {
 }
 
 /**
- * 逐行转发子进程输出，按内容分级。
- * COMPILE RESULT / ERROR 始终可见；loader 逐文件日志、NOTE、img2bin 只在 --verbose 展开。
+ * 逐行分类（流式）—— 子进程输出一行一行地来，这里给出分级与「缩进续行」处理。
+ * 返回一个「喂一行」的函数，回调之间保留上一条的级别状态。
+ * COMPILE RESULT / ERROR / WARNING 立刻可见，其余走 DEBUG。
  */
-export function childOutput(text) {
-  if (!text || quiet) return;
+export function childLineStream() {
   let last = null;
-  for (const raw of String(text).split(/\r?\n/)) {
-    const line = raw.trimEnd();
-    if (!line.trim()) continue;
+  return (raw) => {
+    const line = String(raw).trimEnd();
+    if (!line.trim()) return;
     const cleaned = line.replace(/\u001b\[[0-9;]*m/g, "").trim();
     if (/COMPILE RESULT:/.test(line)) {
       info(cleaned);
@@ -97,14 +99,41 @@ export function childOutput(text) {
     } else if (/\bWARNING\b/.test(line)) {
       warn(cleaned);
       last = "WARN";
-    } else if (/^\s+/.test(raw) && (last === "WARN" || last === "ERROR")) {
+    } else if (/^\s+/.test(line) && (last === "WARN" || last === "ERROR")) {
       // 缩进续行是上一条告警的正文（如「`box-sizing` is not ...」），
       // 跟着同级别输出，否则默认模式下只看到标题看不到原因。
       (last === "ERROR" ? error : warn)(cleaned);
     } else {
       debug(cleaned);
     }
-  }
+  };
+}
+
+/** 逐行转发一段已经拿到的子进程输出（同步场景用） */
+export function childOutput(text) {
+  if (!text || quiet) return;
+  const feed = childLineStream();
+  for (const raw of String(text).split(/\r?\n/)) feed(raw);
+}
+
+/**
+ * 长任务心跳 —— 让「十几秒不出声」的步骤也有实时进度。
+ *
+ * 每 intervalMs 打一行「运行中 · 已用 x s」。任务结束时调用返回的 stop()，
+ * 否则定时器会一直挂着（已 unref，不阻止进程退出，但仍应显式停掉）。
+ *
+ * @param {string} label 显示用的标签，例如 `Task :compileReleaseJsWithNode`
+ * @param {number} [intervalMs] 心跳间隔，默认 3000 ms
+ * @returns {() => void} 停止函数
+ */
+export function startTicker(label, intervalMs = 3000) {
+  if (quiet) return () => {};
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    info(`… ${label} 运行中 · 已用 ${formatMs(Date.now() - t0)}`);
+  }, intervalMs);
+  if (timer.unref) timer.unref();
+  return () => clearInterval(timer);
 }
 
 /** 描述一个产物路径：文件给字节数，目录给文件数与总字节 */

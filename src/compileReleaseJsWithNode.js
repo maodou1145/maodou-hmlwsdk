@@ -66,7 +66,7 @@ export async function run(taskContext) {
     // compileReleaseResources 没跑过时这个目录不存在，就不传（不是所有调用方都需要它）。
     const resPngDir = taskContext.paths.resources ? path.join(path.dirname(taskContext.paths.resources), "resources") : null;
 
-    const r = compileJs({
+    const r = await compileJs({
       moduleRoot,
       buildDir,
       manifestPath,

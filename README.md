@@ -56,6 +56,8 @@ npm run build:verify -- <工程目录>
 | `--verbose` | 展开 webpack 逐文件日志、NOTE、任务产物声明 |
 | `--quiet` | 只留结果行（BUILD SUCCESSFUL / FAILED）与 WARN / ERROR |
 | `--strict` | 自检出现 WARN 也让退出码变 1（默认只有 ERROR 才失败） |
+| `--review <mode>` | `auto`（默认）／`off`／`id,id`：构建时跑外部 skill 的评审脚本，只报警告 |
+| `--heap <n>` | 评审脚本用的目标 JS heap 档位（64 / 256 / 512），默认 256 |
 
 `--strip-images` 只过滤进 `.app` 的 treeHap 条目，不删磁盘中间产物、不动工程源码 PNG、不改 `.bin` 容器：
 
@@ -64,6 +66,23 @@ npm run build:verify -- <工程目录>
 | `auto` | API < 10 删 `.png` 留 `.bin`；API >= 10 删 `.bin` 留 `.png` |
 | `png` / `bin` | 强制删指定扩展名 |
 | `none` | 两种都保留，用于和旧产物对照 |
+
+## 评审（外部 skill 脚本）
+
+构建时（默认开启）会跑外部 skill 自带的只读评审脚本，把发现的问题**降级成警告**打出来：
+
+| 来源 skill | 脚本 | 运行方式 |
+|---|---|---|
+| `huawei-lite-watch-development` | `scripts/audit_lite_watch_project.ps1` | `pwsh` / `powershell`，本机没有就跳过 |
+| `hmlwskill` | `scripts/project-reviewer/cli.js` | `node` |
+| `litewearable-api10-dev` | `scripts/project-reviewer/cli.js` | `node` |
+| `hmlwsim` | `scripts/` 下的 `*review*` / `*audit*` / `*check*` | 自动探测，没有脚本就跳过 |
+
+脚本按顺序从这些位置找：`HMLWSDK_SKILLS` 环境变量 → `<SDK>/reviewers` → `<SDK>/../skills` → `/skills`。
+
+- `--review off` 关闭；`--review hmlwskill` 只跑点名的脚本
+- 失败、缺失、输出格式变化一律只报警告，**不阻断构建、不参与退出码**（`--strict` 也不会因评审而失败）
+- 明细写在 `<work>/review/report.json`
 
 ## 日志
 

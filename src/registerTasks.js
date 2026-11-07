@@ -27,6 +27,7 @@ import * as validateReleaseDistroFilterTask from "./validateReleaseDistroFilterT
 import * as packageReleaseApp from "./packageReleaseApp.js";
 import * as signReleaseApp from "./signReleaseApp.js";
 import * as verifyRelease from "./verifyRelease.js";
+import * as reviewRelease from "./reviewRelease.js";
 
 export const TASKS = [
   // release 链，12 步
@@ -42,6 +43,7 @@ export const TASKS = [
   generateReleaseJsBin,
   signReleaseJsBin,
   packageReleaseHap,
+  reviewRelease, // 外部 skill 评审：只报警告，不阻断构建、不参与退出码
 
   // App 链，3 步
   validateReleaseDistroFilterTask,
@@ -84,9 +86,10 @@ export const DEPENDS = {
   ],
 
   validateReleaseDistroFilterTask: [],
-  packageReleaseApp: ["validateReleaseDistroFilterTask", "packageReleaseHap"],
+  reviewRelease: ["generateReleaseBinSource"],
+  packageReleaseApp: ["validateReleaseDistroFilterTask", "packageReleaseHap", "reviewRelease"],
   signReleaseApp: ["packageReleaseApp"],
-  verifyRelease: ["signReleaseApp"]
+  verifyRelease: ["signReleaseApp", "reviewRelease"]
 };
 
 export function findTask(name) {

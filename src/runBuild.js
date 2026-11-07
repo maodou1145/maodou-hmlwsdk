@@ -79,6 +79,9 @@ export async function runBuild(taskContext, target, onDone = () => {}) {
     log.taskStart(name, i + 1, order.length, task.produces);
     const before = { ...taskContext.paths };
     const t0 = Date.now();
+    // 心跳：超过 3 秒还没结束的步骤会周期性打一行「运行中 · 已用 x s」，
+    // 让编译、签名这类安静的步骤也有实时进度可看。
+    const stopTicker = log.startTicker(`Task :${name}`);
 
     try {
       await task.run(taskContext);
@@ -107,6 +110,8 @@ export async function runBuild(taskContext, target, onDone = () => {}) {
       log.info(`${results.length}/${order.length} tasks · failed at :${name}`);
       onDone({ ok: false, failedAt: name, results });
       return { ok: false, results, failedAt: name };
+    } finally {
+      stopTicker();
     }
   }
 

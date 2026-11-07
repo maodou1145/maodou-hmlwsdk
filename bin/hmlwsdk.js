@@ -33,6 +33,8 @@ import * as log from "../src/logger.js";
  *   --verbose  展开 webpack 逐文件日志、NOTE、任务产物声明
  *   --quiet    只留 WARN / ERROR
  *   --strict   自检出现 WARN 也让退出码为 1（默认只有 ERROR 才失败）
+ *   --review   auto(默认) / off / id,id —— 跑外部 skill 的评审脚本，只报警告不阻断
+ *   --heap     评审用的目标 JS heap 档位（64/256/512），默认 256
  *   --plan     例外，输出纯任务名列表，方便脚本解析
  *
  * 签名相关参数（不给就跳过签名，出 unsigned 包）：
@@ -54,6 +56,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === "--verbose") flags.verbose = true;
   else if (argv[i] === "--quiet") flags.quiet = true;
   else if (argv[i] === "--strict") flags.strict = true;
+  else if (argv[i] === "--review") flags.review = argv[++i];
+  else if (argv[i] === "--heap") flags.heap = Number(argv[++i]);
   else if (argv[i] === "--work") flags.work = argv[++i];
   else if (argv[i] === "--p7b") flags.p7b = argv[++i];
   else if (argv[i] === "--p12") flags.p12 = argv[++i];
@@ -132,6 +136,8 @@ const taskContext = createTaskContext({
   apiLevel: project.apiLevel,
   sdkVersionRaw: project.sdkVersionRaw,
   stripImages: flags.stripImages ?? "auto",
+  review: flags.review ?? "auto",
+  reviewHeapKB: Number.isFinite(flags.heap) ? flags.heap : 256,
   // 没给 p7b 就是"不签"，与 Gradle 没配 signingConfig 的行为一致
   signingConfig: flags.p7b
     ? { p7b: flags.p7b, p12: flags.p12, password: flags.p12pwd, keyFile: flags.key, certPath: flags.cert }
