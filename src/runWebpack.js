@@ -3,6 +3,7 @@ import path from "path";
 import { spawnSync } from "child_process";
 
 import { resolveTools, resolveNode } from "./findTools.js";
+import { ensureCssCompat } from "./aceLoaderCompat.js";
 
 /**
  * 调 node + ace-loader/webpack 编译 JS/HML/CSS
@@ -31,6 +32,13 @@ export function compileJs(opts) {
   const tools = opts.tools ?? resolveTools();
   const node = opts.node ?? resolveNode();
 
+  // API 8+ 工程常见 `* { box-sizing: ... }`，api6 校验器会直接判 ERROR。
+  // 只在高 API 时放宽，API 6/7 工程保持原样，字节一致性不受影响。
+  ensureCssCompat(tools.aceLoader, {
+    apiLevel: opts.apiLevel,
+    log: opts.log ?? console.log
+  });
+
   const webpackBin = path.join(tools.aceLoader, "node_modules", "webpack", "bin", "webpack.js");
   const webpackConfig = path.join(tools.aceLoader, "webpack.lite.config.js");
 
@@ -41,9 +49,13 @@ export function compileJs(opts) {
 
   const env = {
     ...process.env,
-    aceModuleRoot: opts.moduleRoot,
-    aceModuleBuild: opts.buildDir,
-    aceManifestPath: opts.manifestPath,
+    // webpack 的 cwd 是 tools.aceLoader，不是调用方目录。所有路径必须绝对化，
+    // 否则相对路径会被解析到 ace-loader/ 下面，表现为
+    //   ERROR: the manifest file is lost or format is invalid.
+    // 而且产物会被写进 ace-loader 目录里。
+    aceModuleRoot: path.resolve(opts.moduleRoot),
+    aceModuleBuild: path.resolve(opts.buildDir),
+    aceManifestPath: path.resolve(opts.manifestPath),
     watchMode: "false",
     buildMode: opts.buildMode ?? "debug",
     hapMode: opts.hapMode ? "true" : "false",
@@ -53,13 +65,13 @@ export function compileJs(opts) {
     //   Module not found: Can't resolve '<旧路径>/manifest.json'
     // 所以必须把缓存绑到输出目录旁边，跟输出一起生灭。
     // 不设这个变量，第二次换 work 目录构建就会拿到陈旧缓存、编译失败。
-    cachePath: opts.cacheDir ?? path.join(path.dirname(opts.buildDir), "cache"),
+    cachePath: path.resolve(opts.cacheDir ?? path.join(path.dirname(opts.buildDir), "cache")),
     // iconPath：lite-image-coverter-plugin.js 里
     //   "" !== iconPath && getDir(iconPath).forEach(img2bin)
     // 设了它才会把该目录下的 png 也转成 .bin。Gradle 用它把 restool 输出目录里的
     // icon.png 转成 assets/entry/resources/base/media/icon.bin。
     // 注意 img2bin 会同时写 xxx.bin 和 xxx.png.bin 两份，后者要过滤掉。
-    ...(opts.iconPath ? { iconPath: opts.iconPath } : {})
+    ...(opts.iconPath ? { iconPath: path.resolve(opts.iconPath) } : {})
   };
 
   const dev = opts.deviceType ?? "liteWearable";

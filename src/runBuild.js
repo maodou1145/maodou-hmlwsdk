@@ -76,9 +76,12 @@ export async function runBuild(taskContext, target, log = console.log) {
       log(`✓ ${name.padEnd(32)} ${String(ms).padStart(6)} ms`);
     } catch (e) {
       const ms = Date.now() - t0;
-      const first = String(e.message ?? e).split("\n")[0];
-      results.push({ name, ok: false, ms, error: String(e.message ?? e) });
-      log(`✗ ${name.padEnd(32)} ${String(ms).padStart(6)} ms  ${first}`);
+      const full = String(e.message ?? e);
+      const lines = full.split("\n");
+      results.push({ name, ok: false, ms, error: full });
+      log(`✗ ${name.padEnd(32)} ${String(ms).padStart(6)} ms  ${lines[0]}`);
+      // webpack / 子进程的报错是多行的，只打第一行等于把真正的原因吞掉
+      if (lines.length > 1) log(lines.slice(1).join("\n").slice(-4000));
       return { ok: false, results, failedAt: name };
     }
   }

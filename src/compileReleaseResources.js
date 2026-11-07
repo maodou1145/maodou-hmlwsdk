@@ -40,7 +40,7 @@ export function run(taskContext) {
     // 模块根目录 src/main。资源在它下面的 resources/，config.json 也在这一层。
     moduleRoot: path.join(taskContext.moduleDir, "src", "main"),
     configPath: taskContext.paths.processProfile,
-    moduleName: "entry",
+    moduleName: taskContext.moduleName ?? "entry",
     outDir,
     // 压缩图片（原来是 restool 的 -z）。不开的话 png 是源码原样大小
     // （_empty 的 icon.png 6790 B），开了才是 Gradle 产物那样 6320 B。

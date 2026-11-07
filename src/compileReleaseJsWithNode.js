@@ -33,28 +33,33 @@ export async function run(taskContext) {
   if (!taskContext.paths.jsManifest) todo(name, "缺少 jsManifest，必须先跑 generateReleaseJsManifest");
   if (!taskContext.config) todo(name, "缺少 taskContext.config，必须先跑 mergeReleaseProfile");
 
-  const components = taskContext.config.module?.js ?? [];
+  // components 由 resolveProject 探测（含 hvigor 工程带前导点的组件名）。
+  // 老调用方没传时按 config.module.js 兜底，行为与改造前一致。
+  const components = taskContext.components?.length
+    ? taskContext.components
+    : (taskContext.config.module?.js ?? []).map((c) => ({
+        name: c.name,
+        dirName: c.name,
+        buildName: String(c.name).replace(/^\./, ""),
+        pages: c.pages ?? []
+      }));
   if (!components.length) todo(name, "config.json 里没有 module.js，取不到组件名");
 
   const sourceRoot = path.join(taskContext.work, "js", "release", "source", "lite");
 
   for (const comp of components) {
-    // 组件目录，下面必须有 app.js
-    const moduleRoot = path.join(taskContext.moduleDir, "src", "main", "js", comp.name);
+    // 组件源码目录：hvigor 工程是 js/MainAbility，而 config 里写的是 ".MainAbility"
+    const moduleRoot = path.join(taskContext.moduleDir, "src", "main", "js", comp.dirName);
     if (!fs.existsSync(path.join(moduleRoot, "app.js"))) {
-      throw new Error(`${name}: ${moduleRoot} 下没有 app.js，确认组件名 ${comp.name} 对不对`);
+      throw new Error(`${name}: ${moduleRoot} 下没有 app.js，确认组件 ${comp.name} 的源码目录对不对`);
     }
 
-    // 每个组件有自己的一份 manifest
-    const manifestPath = path.join(taskContext.work, "js", "release", "jsManifest", comp.name, "manifest.json");
+    // 每个组件有自己的一份 manifest，目录名与产物 assets/js/<buildName> 保持一致
+    const manifestPath = path.join(taskContext.work, "js", "release", "jsManifest", comp.buildName, "manifest.json");
     if (!fs.existsSync(manifestPath)) {
-      todo(name, `组件 ${comp.name} 的 manifest.json 不存在：${manifestPath}（generateReleaseJsManifest 目前只生成第一个组件的）`);
+      todo(name, `组件 ${comp.name} 的 manifest.json 不存在：${manifestPath}`);
     }
-
-    // buildPath 必须带上 assets/js/<组件名> 这一层。
-    // 传 source/lite 的话 webpack 会把 app.js / common/ / pages/ 直接写在根下，
-    // 而 Gradle 的产物结构是 assets/js/default/app.js —— 实测差 83 个条目。
-    const buildDir = path.join(sourceRoot, "assets", "js", comp.name);
+    const buildDir = path.join(sourceRoot, "assets", "js", comp.buildName);
 
     // resources 下的 png 也要转成 .bin，靠 img2bin 的 iconPath 环境变量。
     // compileReleaseResources 没跑过时这个目录不存在，就不传（不是所有调用方都需要它）。
@@ -70,6 +75,7 @@ export async function run(taskContext) {
       cacheDir: path.join(taskContext.work, "js", "release", "cache"),
       buildMode: "release",
       deviceType: "liteWearable",
+      apiLevel: taskContext.apiLevel,
       hapMode: true
     });
 

@@ -47,3 +47,15 @@ export { compressPng, isSupportedPng } from "./compressPng.js";
 export { compileJs } from "./runWebpack.js";
 
 export { prepareSigning, signBin, signZip, parseP7b, loadPrivateKey, slicedSha256 } from "./sign/index.js";
+
+// 工程布局探测（Gradle / Hvigor，含 API 10 的 "4.0.0(10)" 版本串）
+export {
+  resolveProject,
+  resolveComponents,
+  apiLevelFrom,
+  LAYOUT_GRADLE,
+  LAYOUT_HVIGOR
+} from "./resolveProject.js";
+
+// ace-loader 按 API 级别的兼容补丁
+export { ensureCssCompat, restoreCssCompat } from "./aceLoaderCompat.js";

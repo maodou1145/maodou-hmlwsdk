@@ -4,11 +4,15 @@
  * 贯穿所有任务的 taskContext 形状（由 bin/hmlwsdk.js 创建，任务只读不建）
  *
  *   projectDir          工程根目录，例如 /path/to/apps/_empty/_empty
- *   moduleDir           entry 模块目录，等于 projectDir/entry
- *   work                中间产物目录，所有任务往这里写
+ *   moduleDir           模块目录（resolveProject 探测，不写死 entry）
+ *   moduleName          模块名（工程级 build-profile.json5 的 modules[].name）
+ *   layout              "gradle"（API 5~7）| "hvigor"（API 8~12）
+ *   components          [{ name, dirName, buildName, pages }]，hvigor 的 name 带前导点
+ *   work                中间产物目录，所有任务往这里写（绝对路径）
  *   srcConfig           源码 config.json 解析出来的对象
- *   compileSdkVersion   来自 build.gradle
- *   compatibleSdkVersion 来自 defaultConfig
+ *   apiLevel            目标 API 级别，驱动 ace-loader 的兼容补丁
+ *   compileSdkVersion   → config.app.apiVersion.target
+ *   compatibleSdkVersion → config.app.apiVersion.compatible
  *   config              加工过程中的 config 对象，逐任务往后传
  *   paths               各任务产出文件的路径，键名见各任务的 produces
  */

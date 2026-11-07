@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-import fs from "fs";
 import path from "path";
 
 import { runBuild, plan } from "../src/runBuild.js";
 import { createTaskContext } from "../src/createTaskContext.js";
-import { parseBuildGradle } from "../src/parseBuildGradle.js";
+import { resolveProject } from "../src/resolveProject.js";
 
 /**
  * hmlwsdk 命令行入口
@@ -12,6 +11,15 @@ import { parseBuildGradle } from "../src/parseBuildGradle.js";
  *   node bin/hmlwsdk.js signReleaseApp <工程目录>
  *   node bin/hmlwsdk.js packageReleaseApp <工程目录> --work <中间产物目录>
  *   node bin/hmlwsdk.js --plan signReleaseApp        只列要跑哪些任务，不执行
+ *
+ * 工程布局自动探测（见 src/resolveProject.js）：
+ *   Gradle 工程  build.gradle + entry/build.gradle，API 5~7
+ *   Hvigor 工程  build-profile.json5，compatibleSdkVersion "4.0.0(10)" 这类，API 8~12
+ *
+ * 版本/组件覆盖（探测结果不对时用）：
+ *   --compatible <n>  覆盖 app.apiVersion.compatible
+ *   --target <n>      覆盖 app.apiVersion.target
+ *   --js-out <name>   覆盖 assets/js/<名字>（单组件工程有效）
  *
  * 签名相关参数（不给就跳过签名，出 unsigned 包）：
  *   --p7b <file>      必给，HarmonyOS profile
@@ -35,6 +43,9 @@ for (let i = 0; i < argv.length; i++) {
   else if (argv[i] === "--p12pwd") flags.p12pwd = argv[++i];
   else if (argv[i] === "--key") flags.key = argv[++i];
   else if (argv[i] === "--cert") flags.cert = argv[++i];
+  else if (argv[i] === "--compatible") flags.compatible = Number(argv[++i]);
+  else if (argv[i] === "--target") flags.target = Number(argv[++i]);
+  else if (argv[i] === "--js-out") flags.jsOut = argv[++i];
   else args.push(argv[i]);
 }
 
@@ -60,23 +71,36 @@ if (!projectDir) {
 }
 
 const root = path.resolve(projectDir);
-const moduleDir = path.join(root, "entry");
-const configPath = path.join(moduleDir, "src", "main", "config.json");
 
-if (!fs.existsSync(configPath)) {
-  console.error(`找不到 ${configPath}，确认工程目录指对了（应该指向含 entry/ 的那一级）。`);
-  process.exit(1);
+const project = resolveProject(root, {
+  ...(Number.isFinite(flags.compatible) ? { compatible: flags.compatible } : {}),
+  ...(Number.isFinite(flags.target) ? { target: flags.target } : {}),
+  ...(flags.jsOut ? { jsOut: flags.jsOut } : {})
+});
+
+console.log(
+  `工程布局：${project.layout}   模块：${project.moduleName}   ` +
+    `SDK：${project.sdkVersionRaw} → API ${project.apiLevel}`
+);
+console.log(
+  `apiVersion：compatible=${project.compatibleSdkVersion} target=${project.compileSdkVersion}`
+);
+for (const c of project.components) {
+  console.log(`组件：${c.name} → 源码 js/${c.dirName} → 产物 assets/js/${c.buildName}`);
 }
-
-// 版本号从工程自己的 build.gradle 读，不写死 —— 不同工程的值可能不一样
-const sdkVersions = parseBuildGradle(moduleDir);
 
 const taskContext = createTaskContext({
   projectDir: root,
-  moduleDir,
-  work: flags.work ?? path.join(root, "build", "hmlwsdk"),
-  srcConfig: JSON.parse(fs.readFileSync(configPath, "utf8")),
-  ...sdkVersions,
+  moduleDir: project.moduleDir,
+  moduleName: project.moduleName,
+  layout: project.layout,
+  components: project.components,
+  work: path.resolve(flags.work ?? path.join(root, "build", "hmlwsdk")),
+  srcConfig: project.srcConfig,
+  compileSdkVersion: project.compileSdkVersion,
+  compatibleSdkVersion: project.compatibleSdkVersion,
+  apiLevel: project.apiLevel,
+  sdkVersionRaw: project.sdkVersionRaw,
   // 没给 p7b 就是"不签"，与 Gradle 没配 signingConfig 的行为一致
   signingConfig: flags.p7b
     ? { p7b: flags.p7b, p12: flags.p12, password: flags.p12pwd, keyFile: flags.key, certPath: flags.cert }
