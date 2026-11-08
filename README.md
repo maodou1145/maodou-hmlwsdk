@@ -5,6 +5,33 @@
 JerryScript 快照（WASM）全部是纯 JS。唯一还在用的原生模块是 ace-loader 图片转换里的 `sharp`，
 仓库另附纯 JS 等价实现 `src/imageToBin.js`（与 sharp 产物 20/20 字节一致）。
 
+## 原仓库与本仓库的差异
+
+**原仓库（上游）：https://github.com/kqakqakqa/hmlwsdk** —— 本地 `upstream` remote 指向它。
+
+本仓库是它的扩展分支：保留原来的任务划分与产物结构，主要补「能真的装上真机」那一段。
+
+| 能力 | 原仓库 | 本仓库 |
+|---|---|---|
+| 工程布局 | 面向 Gradle 工程 | 自动探测 Gradle（API 5~7）与 Hvigor（API 8~12，含 `4.0.0(10)`），见 `src/resolveProject.js` |
+| API 10 出包 | — | `apiVersion` 写成编码整数（40000010）、Hvigor 版 `config.json` 补齐 `mainAbility`/`package`/`distroFilter`、`pack.info` 注入签名容器 |
+| 应用图标 | — | 缺 `icon_small` 自动生成（80×80）、尺寸不对等比校正、缺图**直接终止构建**；自检校验实际出包的条目 |
+| 出包自检 | — | `src/verifyRelease.js`，随 16 项任务链跑完执行，ERROR 参与进程退出码 |
+| 图片转 `.bin` | 走 ace-loader 的 `sharp`（原生模块） | 另附字节一致的纯 JS 实现 `src/imageToBin.js`，不依赖 `sharp` 也能出包 |
+| 图片素材择一 | — | `--strip-images auto/png/bin/none` 控制进 `.app` 的条目（应用图标除外） |
+| 构建期评审 | — | 调外部 skill 的只读审计脚本，问题一律降级成警告，不阻断 |
+| 日志 | 基础输出 | hvigor 风格逐任务输出 + 实时进度 + 分级日志（`src/logger.js`） |
+| 文档 | 无 | 本 README |
+
+文件层面：**新增 9 个**（`README.md`、`src/logger.js`、`src/resolveProject.js`、`src/verifyRelease.js`、`src/reviewRelease.js`、`src/ensureAppIcons.js`、`src/imageCodec.js`、`src/imageToBin.js`、`src/aceLoaderCompat.js`），**改动 20 个**（`bin/hmlwsdk.js`、`src/compileResources.js`、`src/processConfig.js`、`src/packageReleaseHap.js`、`src/verifyRelease.js` 等），**没有删除任何上游文件**。
+
+同步上游：
+
+```bash
+git remote add upstream https://github.com/kqakqakqa/hmlwsdk.git   # 已配置可跳过
+git fetch upstream && git merge upstream/main
+```
+
 ## 支持范围
 
 | 项 | 范围 |
@@ -188,6 +215,7 @@ Hvigor 布局下，应用图标是安装期的硬性校验项，缺一项就报�
 - `src/ace-loader` 的图片转换用 `sharp`（带 prebuilt binary 的原生模块），部分手机 / 浏览器环境装不上。
   `src/imageToBin.js` 是与之字节一致的纯 JS 等价实现，目前供自检器和独立调用使用，尚未接入主链。
 - 签名需要自备未过期的 Debug p7b，且设备 UDID 要在 profile 里。
+- **`app.bundleName` 构建链只读，不会被替换**：它只用于生成 `manifest.json` 的 `appID`、`.bin` 容器头、`pack.info` 和产物文件名（取最后一段）。真正改包名的是签名环节——外部工具 `hap-sign-utils` 的 `sign-app-to-hap.js` 会按 p7b 里的 `bundle-info.bundle-name` 改写 `config.json`（`pack.info` 不跟着改，实测不影响安装）。想换包名只能换绑定了该包名的 p7b。
 
 ## 许可
 
