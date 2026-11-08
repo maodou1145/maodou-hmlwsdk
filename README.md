@@ -182,8 +182,10 @@ npm run build:verify -- <工程目录>
 
 为什么必须拦：页面清单只被原样抄进 `manifest.json`，webpack 与 `.bc` 快照都按**实际存在的源码**产出，所以幽灵页面不会有任何文件进包。结果是 `manifest.json` 声明了它、包里却没有——构建全绿，真机 `router.replace` 到该页才白屏。
 
-自检里再查一遍产物（`assets/js/<组件>/<page>.js` 是否存在），Hvigor 判 ERROR、Gradle 判 WARN；
-反向也查：源码里有页面但没写进 `config.json`，构建时告警（会打进包但路由不到）。
+自检里再查一遍产物（`assets/js/<组件>/<page>.js` 是否存在），Hvigor 判 ERROR、Gradle 判 WARN。
+
+反向同样拦：源码里有页面（`pages/xxx/xxx.hml`）但没写进 `config.json`，**构建失败**——
+这类页面会被打进包却路由不到，产物里多出无主文件。两种布局都拦。
 
 ### 应用图标（安装错误码 40）
 

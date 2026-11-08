@@ -221,8 +221,10 @@ function assertPagesExist(jsRoot, dirName, pages, compIndex, strict) {
     }
   }
   if (orphans.length) {
-    log.warn(
-      `组件 ${dirName} 有页面没写进 config.json（会打进包但路由不到）：${orphans.join(", ")}`
+    throw new Error(
+      `组件 ${dirName} 有页面没写进 config.json：\n` +
+        orphans.map((p) => `  - "${p}"：源码里有 js/${dirName}/${p}.hml，但 module.js[].pages 没登记`).join("\n") +
+        "\n这些页面会被打进包却路由不到（产物里多出无主文件）。要么补进 pages，要么删掉源码"
     );
   }
 }
