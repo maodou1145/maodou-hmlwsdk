@@ -135,6 +135,8 @@ const taskContext = createTaskContext({
   compatibleSdkVersion: project.compatibleSdkVersion,
   apiLevel: project.apiLevel,
   sdkVersionRaw: project.sdkVersionRaw,
+  apiVersionCode: project.apiVersionCode,
+  compileSdkVersionStr: project.compileSdkVersionStr,
   stripImages: flags.stripImages ?? "auto",
   review: flags.review ?? "auto",
   reviewHeapKB: Number.isFinite(flags.heap) ? flags.heap : 256,

@@ -51,6 +51,29 @@ export function apiLevelFrom(value) {
 }
 
 /**
+ * SDK 版本串 → HarmonyOS config.app.apiVersion 的编码整数。
+ *
+ * 真机可装包的实测值：`4.0.0(10)` → 40000010、`5.1.0(18)` → 50100018，
+ * 规则是 major*1e7 + minor*1e5 + patch*1e3 + apiLevel。
+ * 早期 Gradle 工程只有裸数字（6/7），那种写法保持原样，不做编码。
+ */
+export function sdkVersionCode(raw) {
+  const s = String(raw ?? "").trim();
+  const m = s.match(/^(\d+)\.(\d+)\.(\d+)\s*\((\d+)\)\s*$/);
+  if (!m) return apiLevelFrom(s);
+  const major = Number(m[1]);
+  const minor = Number(m[2]);
+  const patch = Number(m[3]);
+  const api = Number(m[4]);
+  return major * 10000000 + minor * 100000 + patch * 1000 + api;
+}
+
+/** "4.0.0(10)" → "4.0.0.10"，真包 compileSdkVersion 字段是点分版本串 */
+function sdkVersionString(raw) {
+  return String(raw ?? "").trim().replace(/\((\d+)\)/, ".$1");
+}
+
+/**
  * 解析工程级 build-profile.json5 的 SDK 版本。
  * 优先级：products[].compatibleSdkVersion → app.compatibleSdkVersion → app.compileSdkVersion。
  */
@@ -75,6 +98,8 @@ function versionsFromHvigor(profilePath) {
     compatibleSdkVersion: apiLevel,
     sdkVersionRaw: String(raw),
     apiLevel,
+    apiVersionCode: sdkVersionCode(raw),
+    compileSdkVersionStr: sdkVersionString(raw),
     // 显式记录了 targetSdkVersion 时以它为准
     ...(p?.app?.targetSdkVersion !== undefined
       ? { compileSdkVersion: apiLevelFrom(p.app.targetSdkVersion) }
@@ -168,7 +193,10 @@ export function resolveProject(root, opts = {}) {
     versions = {
       ...g,
       sdkVersionRaw: `${g.compileSdkVersion}/${g.compatibleSdkVersion}`,
-      apiLevel: g.compileSdkVersion
+      apiLevel: g.compileSdkVersion,
+      // Gradle 工程的 apiVersion 就是裸数字，没有编码值，也不写 compileSdkVersion 字段
+      apiVersionCode: null,
+      compileSdkVersionStr: null
     };
   }
 

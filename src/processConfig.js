@@ -19,6 +19,9 @@
  * @param {object} opts
  * @param {number} opts.compileSdkVersion   来自 build.gradle 的 ohos.compileSdkVersion
  * @param {number} opts.compatibleSdkVersion 来自 defaultConfig.compatibleSdkVersion
+ * @param {number|null} [opts.apiVersionCode] Hvigor 工程的 SDK 版本编码整数（如 40000010）；
+ *        给了就走新版 apiVersion 格式，不给则保持 Gradle 的裸数字格式
+ * @param {string|null} [opts.compileSdkVersionStr] compileSdkVersion 字段值
  * @param {boolean} [opts.debug]            debug 变体时写 deviceConfig.default.debug = true
  * @param {string} [opts.releaseType]       默认 "Release"
  * @returns {object} 新的 config 对象（不改原对象）
@@ -27,11 +30,24 @@ export function mergeProfile(source, opts) {
   const out = structuredClone(source);
 
   out.app ??= {};
-  out.app.apiVersion = {
-    compatible: opts.compatibleSdkVersion,
-    target: opts.compileSdkVersion,
-    releaseType: opts.releaseType ?? "Release"
-  };
+  if (opts.apiVersionCode != null) {
+    // API 8+ 的真机包用编码整数（4.0.0(10) → 40000010），写裸 10 会被设备当成
+    // 远古 API 版本、兼容性校验失败。字段集合对照实测可装包。
+    out.app.apiVersion = {
+      compileSdkType: "HarmonyOS",
+      compatible: opts.apiVersionCode,
+      compileSdkVersion: opts.compileSdkVersionStr ?? String(opts.apiVersionCode),
+      releaseType: opts.releaseType ?? "Release",
+      target: opts.apiVersionCode
+    };
+    out.app.appEnvironments = [];
+  } else {
+    out.app.apiVersion = {
+      compatible: opts.compatibleSdkVersion,
+      target: opts.compileSdkVersion,
+      releaseType: opts.releaseType ?? "Release"
+    };
+  }
 
   out.deviceConfig ??= {};
   if (opts.debug) {

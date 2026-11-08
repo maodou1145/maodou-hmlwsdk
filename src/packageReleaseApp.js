@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 
-import { writeZip } from "./readWriteZip.js";
+import { writeZip, readZip } from "./readWriteZip.js";
+import * as log from "./logger.js";
 import { todo } from "./createTaskContext.js";
 
 /**
@@ -36,11 +37,23 @@ export function run(taskContext) {
   fs.mkdirSync(outDir, { recursive: true });
 
   const hapName = path.basename(taskContext.paths.treeHap).replace("-unsigned", "");
-  const hapBuf = fs.readFileSync(taskContext.paths.treeHap);
   const moduleName = hapName.replace(/\.hap$/, "");
 
   // pack.info：summary（来自 config）+ packages（来自 hap 文件名）
-  const packInfoText = JSON.stringify(buildPackInfo(taskContext.config, moduleName), null, 4);
+  const packInfoText = JSON.stringify(buildPackInfo(taskContext.config, moduleName, taskContext), null, 4);
+
+  // API 8+ 的可装包在 signed.bin 容器里带 pack.info。签名脚本只把内层 hap 的条目
+  // 转进容器，而 pack.info 原本与 hap 平级放在 .app 外层，会被丢掉，所以这里
+  // 把它一并塞进 treeHap。Gradle 工程的容器不带 pack.info，保持原样。
+  if (taskContext.layout === "hvigor") {
+    const entries = readZip(fs.readFileSync(taskContext.paths.treeHap));
+    if (!entries.some((e) => e.name === "pack.info")) {
+      entries.push({ name: "pack.info", content: Buffer.from(packInfoText) });
+      fs.writeFileSync(taskContext.paths.treeHap, writeZip(entries, { compress: false }));
+      log.info(`pack.info injected into treeHap (${entries.length} entries)`);
+    }
+  }
+  const hapBuf = fs.readFileSync(taskContext.paths.treeHap);
   fs.writeFileSync(path.join(outDir, "pack.info"), packInfoText);
 
   // appInfo.json：只记录每个包的名字和大小，是中间文件，不进 .app
@@ -84,9 +97,12 @@ export function run(taskContext) {
  * 字段顺序照抄实测产物：deviceType → abilities → distro → apiVersion。
  * abilities 只保留 name 和 label，icon / type / homeAbility / iconId / labelId 都丢掉。
  */
-function buildPackInfo(config, moduleName) {
+function buildPackInfo(config, moduleName, taskContext) {
   const m = config.module ?? {};
   const distro = m.distro ?? {};
+  const hvigor = taskContext?.layout === "hvigor";
+  // 真包 pack.info 带 mainAbility；从 abilities / js 组件名取，取不到就不写
+  const mainAbility = m.abilities?.[0]?.name ?? m.js?.[0]?.name;
 
   return {
     summary: {
@@ -106,11 +122,15 @@ function buildPackInfo(config, moduleName) {
             deliveryWithInstall: distro.deliveryWithInstall ?? true,
             moduleName: distro.moduleName ?? "entry"
           },
-          apiVersion: {
-            compatible: config.app.apiVersion.compatible,
-            releaseType: config.app.apiVersion.releaseType,
-            target: config.app.apiVersion.target
-          }
+          // API 8+ 真包的 modules[].apiVersion 是空对象，版本信息只写在 config.json 里
+          apiVersion: hvigor
+            ? {}
+            : {
+                compatible: config.app.apiVersion.compatible,
+                releaseType: config.app.apiVersion.releaseType,
+                target: config.app.apiVersion.target
+              },
+          ...(hvigor && mainAbility ? { mainAbility } : {})
         }
       ]
     },

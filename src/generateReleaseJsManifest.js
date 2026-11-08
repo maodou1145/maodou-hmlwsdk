@@ -78,7 +78,10 @@ export function run(taskContext) {
           : ability?.label ?? `$string:${comp.buildName}_appName`,
       versionName: c.app.version.name,
       versionCode: c.app.version.code,
-      minPlatformVersion: c.app.apiVersion.compatible,
+      // Gradle 工程沿用 compatibleSdkVersion；Hvigor 工程不能拿编码整数（40000010）
+    // 当 minPlatformVersion，用解析出来的 API 级别
+    minPlatformVersion:
+      taskContext.apiVersionCode != null ? taskContext.apiLevel : c.app.apiVersion.compatible,
       pages: comp.pages,
       deviceType: c.module.deviceType
     };

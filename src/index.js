@@ -54,6 +54,7 @@ export {
   resolveProject,
   resolveComponents,
   apiLevelFrom,
+  sdkVersionCode,
   LAYOUT_GRADLE,
   LAYOUT_HVIGOR
 } from "./resolveProject.js";

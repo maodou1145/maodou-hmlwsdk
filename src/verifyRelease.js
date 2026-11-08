@@ -183,7 +183,8 @@ export function run(taskContext) {
       if (pack) {
         const api = JSON.parse(pack.content.toString("utf8")).summary?.modules?.[0]?.apiVersion;
         const want = config.app.apiVersion;
-        if (api && (api.compatible !== want.compatible || api.target !== want.target)) {
+        // Hvigor 工程的 pack.info.modules[].apiVersion 是空对象（真包实测），不参与比对
+        if (api && Object.keys(api).length && (api.compatible !== want.compatible || api.target !== want.target)) {
           error("pack.info", `apiVersion ${JSON.stringify(api)} 与 config.json 的 ${JSON.stringify(want)} 不一致`);
         }
         stats.packInfoApiVersion = api;

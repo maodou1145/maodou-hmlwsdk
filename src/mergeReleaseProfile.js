@@ -26,6 +26,8 @@ export function run(taskContext) {
   const config = mergeProfile(taskContext.srcConfig, {
     compileSdkVersion: taskContext.compileSdkVersion,
     compatibleSdkVersion: taskContext.compatibleSdkVersion,
+    apiVersionCode: taskContext.apiVersionCode,
+    compileSdkVersionStr: taskContext.compileSdkVersionStr,
     debug: false // release 变体不写 debug:true
   });
 
