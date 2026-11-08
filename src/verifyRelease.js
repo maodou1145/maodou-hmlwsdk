@@ -251,17 +251,18 @@ export function run(taskContext) {
     );
 
     // 应用图标：校验「实际打进 hap 的条目」，不是磁盘上的中间产物。
-    // Hvigor 包只认 PNG —— icon.png / icon_small.png 必须在（缺了装表报 40）；
-    // .bin 删掉不影响使用，只作提示。Gradle 反过来，设备只读 .bin，不查 png。
-    if (taskContext.layout === "hvigor") {
-      for (const stem of ["icon", "icon_small"]) {
-        const hasPng = names.some((n) => new RegExp(`/base/media/${stem}\\.png$`).test(n));
-        const hasBin = names.some((n) => new RegExp(`/base/media/${stem}\\.(png\\.)?bin$`).test(n));
-        if (!hasPng) {
-          error("treeHap", `${stem}.png 不在 hap 里 —— 缺它装表报「40.配置文件格式错误」`);
-        } else if (!hasBin) {
-          info("treeHap", `${stem}.bin 已择一删除（Hvigor 直读 png，不影响使用）`);
-        }
+    // 真机实测（API 10）：只有 bin → 能装；bin+png → 正常；只有 png → 40。
+    // 所以安装期硬性要求的是 .bin，png 只是可选素材。
+    for (const stem of ["icon", "icon_small"]) {
+      const hasPng = names.some((n) => new RegExp(`/base/media/${stem}\\.png$`).test(n));
+      const hasBin = names.some((n) => new RegExp(`/base/media/${stem}\\.(png\\.)?bin$`).test(n));
+      if (!hasBin) {
+        error(
+          "treeHap",
+          `${stem}.bin 不在 hap 里 —— 真机只认 bin，只有 png 会报「40.配置文件格式错误」`
+        );
+      } else if (!hasPng) {
+        info("treeHap", `${stem}.png 已择一删除（真机只吃 bin，不影响安装）`);
       }
     }
     const idx = ents.find((e) => /resources\.index$/.test(e.name));

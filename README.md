@@ -92,11 +92,14 @@ npm run build:verify -- <工程目录>
 | 布局 | `auto`（默认） | 可选 |
 |---|---|---|
 | Gradle（API 5~7） | 删 `.png` 留 `.bin`（图标 png 一起删，设备只读 `.bin`） | `none` 两种全留 |
-| Hvigor（API 8~12） | 删 `.bin` 留 `.png`（图标 bin 一起删，API 10+ 直读 png） | `none` 两种全留 |
+| Hvigor（API 8~12） | 删 `.bin` 留 `.png`，**但应用图标的 bin 除外** | `none` 两种全留 |
 
-唯一一条保护：**删 `.bin` 时，没有同名 `.png` 兜底的 `.bin` 一律保留**——那种 bin 是这张图唯一的副本，删了图就没了。
+两条保护：
 
-应用图标不特殊对待：Hvigor 包只要有 `icon.png` / `icon_small.png` 就能装能显示（40 是「缺 png + resources.index 没登记」导致的，与 bin 无关）；Gradle 包反过来只需要 `.bin`。
+- **删 `.bin` 时应用图标豁免**：`icon` / `icon_small` 的 `.bin` 永远保留。真机实测（API 10）——只有 bin 能装、bin+png 正常、**只有 png 报 40**，安装期真正校验的是 bin。
+- **删 `.bin` 时，没有同名 `.png` 兜底的 `.bin` 一律保留**——那种 bin 是这张图唯一的副本。
+
+普通素材在 Hvigor 下可以只留 png（设备直读 PNG），这跟图标是两回事。
 
 交叉选项直接报错：Gradle 下给 `bin`（会把图删光）、Hvigor 下给 `png`（Hvigor 的默认方向就是留 png）都会被拒绝并提示可用取值。
 
@@ -208,19 +211,17 @@ Hvigor 布局下，应用图标是安装期的硬性校验项，缺一项就报�
 
 | 检查 | 判定 |
 |---|---|
-| `icon.png` 114×114、`icon_small.png` 80×80，且是 8bit 非隔行非调色板 | 缺 / 尺寸不符 → ERROR |
-| `icon.bin` / `icon_small.bin` | 缺了只记 INFO —— Hvigor 直读 png，bin 是可选素材 |
+| `icon.bin` / `icon_small.bin` 在 hap 里 | 缺 → ERROR（真机只认 bin） |
+| `icon.png` / `icon_small.png` | 缺了只记 INFO（有也行） |
 | `resources.index` 登记 `icon` 与 `icon_small` 两条 media | 缺任一 → ERROR |
 
-真机对照（同一只手表，API 10）：
+真机实测（同一只手表，API 10，三种图标形态都装过）：
 
-| 包 | 图标文件 | `resources.index` | 装机 |
-|---|---|---|---|
-| 腕上钓鱼（官方发布） | `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` | 两条 | ✅ |
-| 自制，缺 png | 只有 `icon.bin` | 只有 `icon` | ❌ 40 |
-
-上表能确定的是「**缺 png + 没登记** → 40」。至于 bin：Hvigor 直读 png，`--strip-images auto` 默认就把
-图标 bin 一起删掉（包更小），不影响安装与显示。
+| 图标文件 | `resources.index` | 装机 |
+|---|---|---|
+| 只有 `icon.*.bin` | 两条 | ✅ 能装能显示 |
+| `bin` + `png`（官方包形态） | 两条 | ✅ 正常 |
+| 只有 `icon.*.png` | 两条 | ❌ 40 |
 
 ## 已知边界
 

@@ -115,12 +115,14 @@ export function resolveStripPolicy(taskContext) {
 }
 
 /**
- * 应用图标不参与图片择一，png 与 bin 一律都留。
+ * 应用图标在「删 .bin」时豁免：icon / icon_small 的 bin 永远保留。
  *
- * 依据 腕上钓鱼官方可装包：media 里 icon.png(4428) + icon.bin(51992) +
- * icon_small.png(2834) + icon_small.bin(25608)，双份齐全。实测把 icon.png 删掉、
- * 只剩 icon.bin 的包装表直接报「40.配置文件格式错误」——图标是安装期校验项，
- * 不能按普通素材处理。
+ * 真机实测（API 10，三种图标形态都装过）：
+ *   只有 icon.bin        → 能装能显示
+ *   bin + png            → 正常
+ *   只有 icon.png        → 报「40.配置文件格式错误」
+ * 也就是说安装期真正校验的是 .bin，png 属于「有也行」。图标是唯一例外：
+ * 普通素材在 Hvigor 下可以删 bin 直读 png。
  */
 const APP_ICON_RE = /\/base\/media\/icon(_small)?\.(png|bin)$/i;
 
@@ -152,8 +154,15 @@ export function planStrip(all, dropExt) {
   for (const e of all) {
     const name = e.fileName.toLowerCase();
 
-    // 图标跟普通素材同一套规则：Hvigor 只认 png，图标的 .bin 删掉不影响使用；
-    // Gradle 只读 .bin，图标的 png 也该删。装配期的 40 是「缺 png + 没登记」，与 bin 无关。
+    // 应用图标：删 .bin 时豁免，任何布局都必须留 bin。
+    // 真机实测（API 10）：只有 icon.bin → 能装能显示；bin+png → 正常；只有 png → 报 40。
+    // 所以安装期真正吃的是 .bin，png 只是「有也行」。这只是图标的特例，普通素材
+    // 在 Hvigor 下仍可删 bin（直读 png）。
+    if (isAppIcon(e) && dropExt === "bin") {
+      icons++;
+      kept.push(e);
+      continue;
+    }
     if (isAppIcon(e)) icons++;
     if (!name.endsWith("." + dropExt)) {
       kept.push(e);
@@ -193,7 +202,7 @@ function packTreeHap(taskContext) {
     log.info(
       `strip-images=${taskContext.stripImages ?? "auto"} → 剔除 .${dropExt} ` +
         `${dropped.length} 个条目，treeHap 保留 ${kept.length} 个` +
-        (icons ? `（含 ${icons} 个应用图标）` : "") +
+        (icons ? `（${icons} 个应用图标不参与删 bin）` : "") +
         (loneBins ? `；${loneBins} 个没有 png 对照的 .bin 已保留` : "")
     );
   }
