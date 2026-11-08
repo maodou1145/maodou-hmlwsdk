@@ -222,6 +222,27 @@ export function run(taskContext) {
     );
   }
 
+  // Hvigor 应用图标：资源表登记 + 两种尺寸的 BGRA 位图
+  if (taskContext.layout === "hvigor") {
+    const media = allFiles.filter((f) => f.replace(/\\/g, "/").includes("base/media"));
+    const expect = { "icon.bin": [114, 114], "icon_small.bin": [80, 80] };
+    for (const [name, [w, h]] of Object.entries(expect)) {
+      const f = media.find((p) => path.basename(p) === name);
+      if (!f) {
+        warn("app icons", `缺 ${name}，安装可能出现错误码 40`);
+        continue;
+      }
+      const r = inspectBin(fs.readFileSync(f));
+      if (!r.ok || r.width !== w || r.height !== h) {
+        warn("app icons", `${name} 应为 ${w}x${h}，实际 ${r.width}x${r.height}，可能导致安装错误码 40`);
+      }
+    }
+    const ri = allFiles.find((f) => f.endsWith("resources.index"));
+    if (ri && !fs.readFileSync(ri).toString("latin1").includes("icon_small")) {
+      warn("resources.index", "没有登记 icon_small，安装可能出现错误码 40");
+    }
+  }
+
   // ── 汇总 ──────────────────────────────────────────────────────────────
   const errors = issues.filter((i) => i.level === "ERROR");
   const warns = issues.filter((i) => i.level === "WARN");

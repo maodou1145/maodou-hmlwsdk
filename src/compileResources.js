@@ -8,6 +8,7 @@ import { writeResourceTable } from "./writeResourceTable.js";
 import { copyResourceFiles } from "./copyResourceFiles.js";
 import { fillResourceIds } from "./parseResourceTable.js";
 import { stringifyConfig } from "./processConfig.js";
+import { ensureAppIcons } from "./ensureAppIcons.js";
 
 /**
  * 编译模块资源 —— 替代 restool.exe
@@ -71,6 +72,11 @@ export function compileResources(opts) {
 
   const scanned = scanResourceFiles(opts.moduleRoot);
 
+  // Hvigor 布局需要 icon(114x114) + icon_small(80x80) 两个应用图标，
+  // 缺一个会在安装期报「40.配置文件格式错误」。只往扫描结果里注入生成文件，
+  // 不改工程源码；生成物落在 outDir/.generated。
+  const icons = opts.ensureIcons ? ensureAppIcons(scanned, outDir) : null;
+
   // ── 第一遍：收集资源项并按 restool 的顺序发 id ──
   const idTable = new Map(); // "resType:name" → { id, resType, typeName, name }
   const byLimitKey = new Map();
@@ -122,7 +128,7 @@ export function compileResources(opts) {
   const configFile = path.join(outDir, "config.json");
   writeConfigJson(opts.configPath, configFile, idTable);
 
-  return { indexFile, rTxtFile, configFile, stats };
+  return { indexFile, rTxtFile, configFile, stats, icons };
 }
 
 /**

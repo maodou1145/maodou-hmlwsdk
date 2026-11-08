@@ -96,10 +96,10 @@ export function run(taskContext) {
   fs.mkdirSync(entryDir, { recursive: true });
   fs.copyFileSync(taskContext.paths.resources, path.join(entryDir, "resources.index"));
 
-  // c. 清掉双后缀 .png.bin
-  // ace-loader 的 lite-image2bin.js 会同时写两份：xxx.bin 和 xxx.png.bin。
-  // Gradle 的 92 个产物条目里一个 .png.bin 都没有，只留单后缀那份。
+  // c. 双后缀 .png.bin：Gradle 产物不带，但 API 8+ 真机可装包单/双后缀都出现过。
+  //    先清掉 ace-loader 生成的，再给应用图标补一份双后缀副本，两种命名都覆盖。
   removeDoubleSuffixBin(sourceRoot);
+  if (taskContext.layout === "hvigor") addIconDoubleSuffixBin(sourceRoot);
 
   return sourceRoot;
 }
@@ -116,6 +116,19 @@ function removeDoubleSuffixBin(dir) {
     const p = path.join(dir, ent.name);
     if (ent.isDirectory()) removeDoubleSuffixBin(p);
     else if (/\.(png|jpg|jpeg|bmp)\.bin$/i.test(ent.name)) fs.rmSync(p, { force: true });
+  }
+}
+
+/** 给应用图标的 BGRA 位图补一份 xxx.png.bin 双后缀副本（内容相同） */
+function addIconDoubleSuffixBin(dir) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      addIconDoubleSuffixBin(p);
+    } else if (/^icon(_small)?\.bin$/i.test(ent.name)) {
+      const dbl = p.replace(/\.bin$/i, ".png.bin");
+      if (!fs.existsSync(dbl)) fs.copyFileSync(p, dbl);
+    }
   }
 }
 
