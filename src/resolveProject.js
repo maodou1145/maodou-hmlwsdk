@@ -68,10 +68,11 @@ export function sdkVersionCode(raw) {
   return major * 10000000 + minor * 100000 + patch * 1000 + api;
 }
 
-/** "4.0.0(10)" → "4.0.0.10"，真包 compileSdkVersion 字段是点分版本串 */
-function sdkVersionString(raw) {
-  return String(raw ?? "").trim().replace(/\((\d+)\)/, ".$1");
-}
+/**
+ * config.app.apiVersion.compileSdkVersion 用的是 SDK 工具链版本串，不是工程的
+ * compatibleSdkVersion。取真机可装包实测值；换 DevEco SDK 环境时改这个常量。
+ */
+const COMPILE_SDK_VERSION = "5.1.0.125";
 
 /**
  * 解析工程级 build-profile.json5 的 SDK 版本。
@@ -99,7 +100,7 @@ function versionsFromHvigor(profilePath) {
     sdkVersionRaw: String(raw),
     apiLevel,
     apiVersionCode: sdkVersionCode(raw),
-    compileSdkVersionStr: sdkVersionString(raw),
+    compileSdkVersionStr: COMPILE_SDK_VERSION,
     // 显式记录了 targetSdkVersion 时以它为准
     ...(p?.app?.targetSdkVersion !== undefined
       ? { compileSdkVersion: apiLevelFrom(p.app.targetSdkVersion) }
