@@ -10,7 +10,7 @@ JerryScript 快照（WASM）全部是纯 JS。唯一还在用的原生模块是 
 | 项 | 范围 |
 |---|---|
 | 工程布局 | Gradle（API 5~7，`build.gradle`）／ Hvigor（API 8~12，`build-profile.json5`，含 `"4.0.0(10)"`） |
-| 源码 | HML / CSS / JS → webpack bundle；PNG → BGRA `.bin` |
+| 源码 | HML / CSS / JS → webpack bundle；PNG → BGRA `.bin`；应用图标自动补齐并校正到 114×114 / 80×80 |
 | 快照 | JerryScript v24 `.bc`，内置 WASM 生成，best-effort |
 | 打包 | `.bin` 私有容器 → hap → `.app`（含 `pack.info`） |
 | 签名 | CMS / p7b，可选；不给 `--p7b` 就出 unsigned 包 |
@@ -59,12 +59,17 @@ npm run build:verify -- <工程目录>
 | `--review <mode>` | `auto`（默认）／`off`／`id,id`：构建时跑外部 skill 的评审脚本，只报警告 |
 | `--heap <n>` | 评审脚本用的目标 JS heap 档位（64 / 256 / 512），默认 256 |
 
-`--strip-images` 只过滤进 `.app` 的 treeHap 条目，不删磁盘中间产物、不动工程源码 PNG、不改 `.bin` 容器：
+`--strip-images` 只过滤进 `.app` 的 treeHap 条目，不删磁盘中间产物、不动工程源码 PNG、不改 `.bin` 容器。
+
+**应用图标是例外，永远不参与择一**：`base/media/icon.png`、`icon_small.png` 与它们的 `.bin` 一律双份保留。
+依据是官方可装包（GM星露谷）就是 `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` 四件齐全，
+实测只剩 `icon.bin` 的包装表直接报「40.配置文件格式错误」。
 
 | 策略 | 行为 |
 |---|---|
-| `auto` | 统一删 `.png` 留 `.bin`（默认）。API 10+ 虽可直接读 PNG，但只留 PNG 会在安装期资源校验失败 |
-| `png` / `bin` | 强制删指定扩展名 |
+| `auto` | 删 `.png` 留 `.bin`（默认），应用图标除外 |
+| `png` | 强制删 `.png` 留 `.bin`，应用图标除外 |
+| `bin` | 强制删 `.bin` 留 `.png`；API 10+ 可直读 PNG，API < 10 自检判 ERROR |
 | `none` | 两种都保留，用于和旧产物对照 |
 
 ## 评审（外部 skill 脚本）
@@ -138,6 +143,40 @@ npm run build:verify -- <工程目录>
 `.bin` 容器、`.app` 条目、`config.json` 与 `pack.info` 的 `apiVersion`，报告写到
 `<work>/verify/report.json`。任务层不因自检抛错（产物照样生成），但**进程退出码跟随自检结论**：
 有 ERROR 时退出码为 1（真机黑屏这类问题不能算成功），只有 WARN 时退出码为 0，加 `--strict` 则 WARN 也算失败。
+
+### 应用图标（安装错误码 40）
+
+Hvigor 布局下，应用图标是安装期的硬性校验项，缺一项就报「40.配置文件格式错误」。
+两条防线：
+
+**1. 构建期补齐（`src/ensureAppIcons.js`）** —— 资源扫描阶段检查 `base/media`：
+
+| 情况 | 处理 |
+|---|---|
+| 缺 `icon_small.png` 或尺寸不是 80×80 | 从 `icon.png` 等比居中生成（空白透明，不拉伸） |
+| `icon.png` 尺寸不是 114×114 | 等比居中校正 |
+| 缺 `base/media`、缺 `icon.png`、`icon.png` 解不开（非 8bit / 隔行 / 调色板） | **抛错终止构建** |
+| 补完仍缺任一图标 | **抛错终止构建** |
+
+生成物只写 `<work>/.generated`，不改工程源码；随后自动进 `resources.index`、被复制到产物目录、
+由图片转换链转成 BGRA `.bin`。Gradle（API 5~7）布局不启用，行为不变。
+
+**2. 自检校验实际出包的条目** —— 查的是 hap 里的内容，不是磁盘中间产物
+（磁盘齐全但打包时被 strip 掉，同样装不上）：
+
+| 检查 | 判定 |
+|---|---|
+| `icon.png` 114×114、`icon_small.png` 80×80，且是 8bit 非隔行非调色板 | 缺 / 尺寸不符 → ERROR |
+| `icon.bin` 51,992 B、`icon_small.bin` 25,608 B，宽高与 png 一致 | 缺 / 格式异常 → ERROR |
+| `resources.index` 登记 `icon` 与 `icon_small` 两条 media | 缺任一 → ERROR |
+
+真机对照（同一只手表，API 10）：
+
+| 包 | 图标文件 | `resources.index` | 装机 |
+|---|---|---|---|
+| GM星露谷（官方发布） | `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` | 两条 | ✅ |
+| 自制，补齐图标后 | 同上（另带 `xxx.png.bin` 副本） | 两条 | ✅ |
+| 自制，缺图标 | 只有 `icon.bin` | 只有 `icon` | ❌ 40 |
 
 ## 已知边界
 
