@@ -65,7 +65,7 @@ export function mergeProfile(source, opts) {
     for (const ab of m.abilities ?? []) delete ab.homeAbility;
     // 源码里已经有值的字段一律沿用，缺了才补默认值 —— 这里不做覆盖。
     //   package      真包实测恒为 com.example.myapplication（与 app.bundleName 无关，
-    //                GM星露谷/wanlian/自制 dice10 三个包都是这个值），但它是构建期
+    //                腕上钓鱼/wanlian/自制 dice10 三个包都是这个值），但它是构建期
     //                占位符；工程自己写了就用工程的。
     //   mainAbility  与 abilities[0].name 同值，真包都是 .MainAbility。
     const known = ["deviceType", "abilities", "mainAbility", "distro", "distroFilter", "package", "js", "reqPermissions"];

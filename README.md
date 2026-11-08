@@ -89,7 +89,7 @@ npm run build:verify -- <工程目录>
 `--strip-images` 只过滤进 `.app` 的 treeHap 条目，不删磁盘中间产物、不动工程源码 PNG、不改 `.bin` 容器。
 
 **应用图标是例外，永远不参与择一**：`base/media/icon.png`、`icon_small.png` 与它们的 `.bin` 一律双份保留。
-依据是官方可装包（GM星露谷）就是 `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` 四件齐全，
+依据是官方可装包（腕上钓鱼）就是 `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` 四件齐全，
 实测只剩 `icon.bin` 的包装表直接报「40.配置文件格式错误」。
 
 | 策略 | 行为 |
@@ -201,7 +201,7 @@ Hvigor 布局下，应用图标是安装期的硬性校验项，缺一项就报�
 
 | 包 | 图标文件 | `resources.index` | 装机 |
 |---|---|---|---|
-| GM星露谷（官方发布） | `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` | 两条 | ✅ |
+| 腕上钓鱼（官方发布） | `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` | 两条 | ✅ |
 | 自制，补齐图标后 | 同上（另带 `xxx.png.bin` 副本） | 两条 | ✅ |
 | 自制，缺图标 | 只有 `icon.bin` | 只有 `icon` | ❌ 40 |
 

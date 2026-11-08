@@ -73,7 +73,7 @@ export function run(taskContext) {
 /**
  * 决定 treeHap 里要剔除哪一类图片，返回要删掉的扩展名（不含点），null = 都保留。
  *
- *   auto（默认）→ 统一删 .png 留 .bin；GM星露谷 / wanlian / dice10 三个真机可装包
+ *   auto（默认）→ 统一删 .png 留 .bin；腕上钓鱼 / wanlian / dice10 三个真机可装包
  *                的容器里一个 .png 都没有，只有 .bin，所以按 .bin 为准
  *   png         → 强制删 .png 留 .bin（同 auto）
  *   bin         → 强制删 .bin 留 .png；API 10+ 设备可直读 PNG，API<10 会缺图
@@ -92,7 +92,7 @@ export function resolveStripPolicy(taskContext) {
 /**
  * 应用图标不参与图片择一，png 与 bin 一律都留。
  *
- * 依据 GM星露谷官方可装包：media 里 icon.png(4428) + icon.bin(51992) +
+ * 依据 腕上钓鱼官方可装包：media 里 icon.png(4428) + icon.bin(51992) +
  * icon_small.png(2834) + icon_small.bin(25608)，双份齐全。实测把 icon.png 删掉、
  * 只剩 icon.bin 的包装表直接报「40.配置文件格式错误」——图标是安装期校验项，
  * 不能按普通素材处理。
