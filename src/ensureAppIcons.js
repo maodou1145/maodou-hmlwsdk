@@ -1,10 +1,9 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
-import pako from "pako";
 import { decodePngPixels } from "./compressPng.js";
 import { toRgba } from "./imageToBin.js";
-import { crc32 } from "./readWriteZip.js";
+import { ICON, ICON_SMALL, encodePng, fitCenter } from "./imageCodec.js";
 import * as log from "./logger.js";
 
 /**
@@ -21,58 +20,13 @@ import * as log from "./logger.js";
  *   - 作为 media.files 的一项，自动进 resources.index、被 copyResourceFiles
  *     复制到产物目录，再由 ace-loader 的 img2bin 转成对应 .bin
  *   - 尺寸不符时等比居中到目标尺寸，空白填透明，不拉伸
+ *
+ * 补不出来就抛错终止构建 —— 宁可不出包，也不出装上就报 40 的包。
+ * 没有源工程时的成品包检查/修复走 `hmlwsdk checkPackage`。
  */
 
-export const ICON_SIZE = 114;
-export const ICON_SMALL_SIZE = 80;
-
-/** 等比居中缩放，空白透明，不拉伸 */
-function fitCenter(src, sw, sh, dw, dh) {
-  const out = Buffer.alloc(dw * dh * 4);
-  const scale = Math.min(dw / sw, dh / sh);
-  const nw = Math.max(1, Math.round(sw * scale));
-  const nh = Math.max(1, Math.round(sh * scale));
-  const ox = Math.floor((dw - nw) / 2);
-  const oy = Math.floor((dh - nh) / 2);
-  for (let y = 0; y < nh; y++) {
-    for (let x = 0; x < nw; x++) {
-      const sx = Math.min(sw - 1, Math.floor((x * sw) / nw));
-      const sy = Math.min(sh - 1, Math.floor((y * sh) / nh));
-      const s = (sy * sw + sx) * 4;
-      const d = ((y + oy) * dw + x + ox) * 4;
-      src.copy(out, d, s, s + 4);
-    }
-  }
-  return out;
-}
-
-function pngChunk(type, data) {
-  const b = Buffer.alloc(12 + data.length);
-  b.writeUInt32BE(data.length, 0);
-  b.write(type, 4, "latin1");
-  data.copy(b, 8);
-  b.writeUInt32BE(crc32(Buffer.concat([b.subarray(4, 8), data])) >>> 0, 8 + data.length);
-  return b;
-}
-
-/** 8bit RGBA、非隔行、filter=0 的最小 PNG 编码 */
-function encodePng(rgba, w, h) {
-  const raw = Buffer.alloc(h * (1 + w * 4));
-  for (let y = 0; y < h; y++) {
-    rgba.copy(raw, y * (1 + w * 4) + 1, y * w * 4, (y + 1) * w * 4);
-  }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(w, 0);
-  ihdr.writeUInt32BE(h, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6; // RGBA
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", ihdr),
-    pngChunk("IDAT", Buffer.from(pako.deflate(raw, { level: 9 }))),
-    pngChunk("IEND", Buffer.alloc(0))
-  ]);
-}
+export const ICON_SIZE = ICON;
+export const ICON_SMALL_SIZE = ICON_SMALL;
 
 function setGenerated(media, filename, genPath) {
   const i = media.files.findIndex((f) => path.basename(f).toLowerCase() === filename);

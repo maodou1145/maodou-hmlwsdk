@@ -81,6 +81,25 @@ export function rgbaToBin(rgba, width, height) {
   return out;
 }
 
+/** .bin → RGBA（rgbaToBin 的逆运算，修复成品包时用） */
+export function binToRgba(buf) {
+  const info = inspectBin(buf);
+  if (!info.ok) {
+    throw new Error(
+      `不是合法的图片 .bin：magic=${info.magic} ${info.width}x${info.height} ${buf.length} B（应为 ${info.expected} B）`
+    );
+  }
+  const { width, height } = info;
+  const rgba = Buffer.allocUnsafe(width * height * 4);
+  for (let i = 0, o = 8; i < rgba.length; i += 4, o += 4) {
+    rgba[i] = buf[o + 2];
+    rgba[i + 1] = buf[o + 1];
+    rgba[i + 2] = buf[o];
+    rgba[i + 3] = buf[o + 3];
+  }
+  return { rgba, width, height };
+}
+
 /** PNG 字节 → .bin 字节 */
 export function pngToBin(input) {
   const decoded = decodePngPixels(input);
