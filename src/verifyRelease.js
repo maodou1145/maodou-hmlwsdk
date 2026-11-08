@@ -251,17 +251,16 @@ export function run(taskContext) {
     );
 
     // 应用图标：校验「实际打进 hap 的条目」，不是磁盘上的中间产物。
-    // 磁盘齐全但打包时被 strip 掉，装表照样报 40——这层必须查 hap 本体。
-    // 只对 Hvigor 包要求双份：Gradle（API<10）设备只读 .bin，图标 png 允许被择一删掉。
+    // Hvigor 包只认 PNG —— icon.png / icon_small.png 必须在（缺了装表报 40）；
+    // .bin 删掉不影响使用，只作提示。Gradle 反过来，设备只读 .bin，不查 png。
     if (taskContext.layout === "hvigor") {
       for (const stem of ["icon", "icon_small"]) {
         const hasPng = names.some((n) => new RegExp(`/base/media/${stem}\\.png$`).test(n));
         const hasBin = names.some((n) => new RegExp(`/base/media/${stem}\\.(png\\.)?bin$`).test(n));
-        if (!hasPng || !hasBin) {
-          error(
-            "treeHap",
-            `${stem} 在 hap 里 png=${hasPng} bin=${hasBin} —— 官方 GM 包是双份，缺一个装表报「40.配置文件格式错误」`
-          );
+        if (!hasPng) {
+          error("treeHap", `${stem}.png 不在 hap 里 —— 缺它装表报「40.配置文件格式错误」`);
+        } else if (!hasBin) {
+          info("treeHap", `${stem}.bin 已择一删除（Hvigor 直读 png，不影响使用）`);
         }
       }
     }

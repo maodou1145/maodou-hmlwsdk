@@ -91,13 +91,12 @@ npm run build:verify -- <工程目录>
 
 | 布局 | `auto`（默认） | 可选 |
 |---|---|---|
-| Gradle（API 5~7） | 删 `.png` 留 `.bin`（图标也删 png，设备只读 `.bin`） | `none` 两种全留 |
-| Hvigor（API 8~12） | 删 `.bin` 留 `.png`（API 10+ 可直读 PNG） | `none` 两种全留 |
+| Gradle（API 5~7） | 删 `.png` 留 `.bin`（图标 png 一起删，设备只读 `.bin`） | `none` 两种全留 |
+| Hvigor（API 8~12） | 删 `.bin` 留 `.png`（图标 bin 一起删，API 10+ 直读 png） | `none` 两种全留 |
 
-两条保护规则：
+唯一一条保护：**删 `.bin` 时，没有同名 `.png` 兜底的 `.bin` 一律保留**——那种 bin 是这张图唯一的副本，删了图就没了。
 
-- **删 `.bin` 时，应用图标不参与**：`icon` / `icon_small` 保持 png+bin 双份，缺一个装表报 40。
-- **删 `.bin` 时，没有同名 `.png` 兜底的 `.bin` 一律保留**——那种 bin 是这张图唯一的副本，删了图就没了。
+应用图标不特殊对待：Hvigor 包只要有 `icon.png` / `icon_small.png` 就能装能显示（40 是「缺 png + resources.index 没登记」导致的，与 bin 无关）；Gradle 包反过来只需要 `.bin`。
 
 交叉选项直接报错：Gradle 下给 `bin`（会把图删光）、Hvigor 下给 `png`（Hvigor 的默认方向就是留 png）都会被拒绝并提示可用取值。
 
@@ -205,13 +204,12 @@ Hvigor 布局下，应用图标是安装期的硬性校验项，缺一项就报�
 生成物只写 `<work>/.generated`，不改工程源码；随后自动进 `resources.index`、被复制到产物目录、
 由图片转换链转成 BGRA `.bin`。Gradle（API 5~7）布局不启用，行为不变。
 
-**2. 自检校验实际出包的条目** —— 查的是 hap 里的内容，不是磁盘中间产物
-（磁盘齐全但打包时被 strip 掉，同样装不上）：
+**2. 自检校验实际出包的条目** —— 查的是 hap 里的内容，不是磁盘中间产物（磁盘齐全但打包时被 strip 掉，同样装不上）：
 
 | 检查 | 判定 |
 |---|---|
 | `icon.png` 114×114、`icon_small.png` 80×80，且是 8bit 非隔行非调色板 | 缺 / 尺寸不符 → ERROR |
-| `icon.bin` 51,992 B、`icon_small.bin` 25,608 B，宽高与 png 一致 | 缺 / 格式异常 → ERROR |
+| `icon.bin` / `icon_small.bin` | 缺了只记 INFO —— Hvigor 直读 png，bin 是可选素材 |
 | `resources.index` 登记 `icon` 与 `icon_small` 两条 media | 缺任一 → ERROR |
 
 真机对照（同一只手表，API 10）：
@@ -219,8 +217,10 @@ Hvigor 布局下，应用图标是安装期的硬性校验项，缺一项就报�
 | 包 | 图标文件 | `resources.index` | 装机 |
 |---|---|---|---|
 | 腕上钓鱼（官方发布） | `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` | 两条 | ✅ |
-| 自制，补齐图标后 | 同上（另带 `xxx.png.bin` 副本） | 两条 | ✅ |
-| 自制，缺图标 | 只有 `icon.bin` | 只有 `icon` | ❌ 40 |
+| 自制，缺 png | 只有 `icon.bin` | 只有 `icon` | ❌ 40 |
+
+上表能确定的是「**缺 png + 没登记** → 40」。至于 bin：Hvigor 直读 png，`--strip-images auto` 默认就把
+图标 bin 一起删掉（包更小），不影响安装与显示。
 
 ## 已知边界
 

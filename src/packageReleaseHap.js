@@ -152,13 +152,9 @@ export function planStrip(all, dropExt) {
   for (const e of all) {
     const name = e.fileName.toLowerCase();
 
-    // 图标只在「删 .bin」时豁免：Hvigor 包里 icon / icon_small 必须 png+bin 双份，
-    // 少一个装表就报 40。删 .png 时（Gradle 布局）图标跟普通素材一样处理。
-    if (isAppIcon(e) && dropExt === "bin") {
-      icons++;
-      kept.push(e);
-      continue;
-    }
+    // 图标跟普通素材同一套规则：Hvigor 只认 png，图标的 .bin 删掉不影响使用；
+    // Gradle 只读 .bin，图标的 png 也该删。装配期的 40 是「缺 png + 没登记」，与 bin 无关。
+    if (isAppIcon(e)) icons++;
     if (!name.endsWith("." + dropExt)) {
       kept.push(e);
       continue;
@@ -197,7 +193,7 @@ function packTreeHap(taskContext) {
     log.info(
       `strip-images=${taskContext.stripImages ?? "auto"} → 剔除 .${dropExt} ` +
         `${dropped.length} 个条目，treeHap 保留 ${kept.length} 个` +
-        (icons ? `（${icons} 个应用图标不参与择一）` : "") +
+        (icons ? `（含 ${icons} 个应用图标）` : "") +
         (loneBins ? `；${loneBins} 个没有 png 对照的 .bin 已保留` : "")
     );
   }
