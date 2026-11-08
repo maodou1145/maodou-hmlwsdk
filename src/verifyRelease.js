@@ -207,7 +207,8 @@ export function run(taskContext) {
 
   // ── 7. treeHap 图片素材择一是否生效 ───────────────────────────────────
   if (paths.treeHap && fs.existsSync(paths.treeHap)) {
-    const names = readZip(fs.readFileSync(paths.treeHap)).map((e) => e.name);
+    const ents = readZip(fs.readFileSync(paths.treeHap));
+    const names = ents.map((e) => e.name);
     const png = names.filter((n) => n.toLowerCase().endsWith(".png")).length;
     const bin = names.filter((n) => n.endsWith(".bin")).length;
     stats.treeHapImages = { png, bin, policy: taskContext.stripImages ?? "auto" };
@@ -222,6 +223,30 @@ export function run(taskContext) {
         ? `图片素材双份保留（.png ${png} / .bin ${bin}）`
         : `图片素材已择一（.png ${png} / .bin ${bin}）`
     );
+
+    // 应用图标：校验「实际打进 hap 的条目」，不是磁盘上的中间产物。
+    // 磁盘齐全但打包时被 strip 掉，装表照样报 40——这层必须查 hap 本体。
+    for (const stem of ["icon", "icon_small"]) {
+      const hasPng = names.some((n) => new RegExp(`/base/media/${stem}\\.png$`).test(n));
+      const hasBin = names.some((n) => new RegExp(`/base/media/${stem}\\.(png\\.)?bin$`).test(n));
+      if (!hasPng || !hasBin) {
+        error(
+          "treeHap",
+          `${stem} 在 hap 里 png=${hasPng} bin=${hasBin} —— 官方 GM 包是双份，缺一个装表报「40.配置文件格式错误」`
+        );
+      }
+    }
+    const idx = ents.find((e) => /resources\.index$/.test(e.name));
+    if (!idx) {
+      error("treeHap", "hap 里没有 resources.index");
+    } else {
+      const t = idx.content.toString("latin1");
+      for (const stem of ["icon", "icon_small"]) {
+        if (!new RegExp(`${stem}\\.png`, "i").test(t)) {
+          error("treeHap", `hap 内的 resources.index 没登记 ${stem}.png`);
+        }
+      }
+    }
   }
 
   // Hvigor 应用图标：资源表登记 + 两种尺寸，缺任何一个都装不上（错误码 40）

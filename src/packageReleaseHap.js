@@ -90,21 +90,40 @@ export function resolveStripPolicy(taskContext) {
 }
 
 /**
+ * 应用图标不参与图片择一，png 与 bin 一律都留。
+ *
+ * 依据 GM星露谷官方可装包：media 里 icon.png(4428) + icon.bin(51992) +
+ * icon_small.png(2834) + icon_small.bin(25608)，双份齐全。实测把 icon.png 删掉、
+ * 只剩 icon.bin 的包装表直接报「40.配置文件格式错误」——图标是安装期校验项，
+ * 不能按普通素材处理。
+ */
+const APP_ICON_RE = /\/base\/media\/icon(_small)?\.(png|bin)$/i;
+
+function isAppIcon(entry) {
+  const full = ((entry.relPath || "").replace(/^\//, "") + "/" + entry.fileName).replace(/^\//, "");
+  return APP_ICON_RE.test(full.startsWith("/") ? full : "/" + full);
+}
+
+/**
  * 把 source/lite 整个目录打成 hap
  *
  * 唯一的加工点：config.json 换成紧凑单行版。里面其它文件原样塞进去。
- * 图片择一在这里过滤条目，不删磁盘文件。
+ * 图片择一在这里过滤条目，不删磁盘文件；应用图标是例外，永远双份保留。
  */
 function packTreeHap(taskContext) {
   const { config, paths } = taskContext;
   const strip = resolveStripPolicy(taskContext);
   const all = sortEntries(collect(paths.binSource));
-  const kept = strip ? all.filter((e) => !e.fileName.toLowerCase().endsWith("." + strip)) : all;
+  const kept = strip
+    ? all.filter((e) => !e.fileName.toLowerCase().endsWith("." + strip) || isAppIcon(e))
+    : all;
+  const keptIcons = strip ? all.filter((e) => isAppIcon(e)).length : 0;
 
   if (strip) {
     log.info(
       `strip-images=${taskContext.stripImages ?? "auto"} → 剔除 .${strip} ` +
-        `${all.length - kept.length} 个条目，treeHap 保留 ${kept.length} 个`
+        `${all.length - kept.length} 个条目，treeHap 保留 ${kept.length} 个` +
+        (keptIcons ? `（其中 ${keptIcons} 个应用图标不参与择一）` : "")
     );
   }
 
