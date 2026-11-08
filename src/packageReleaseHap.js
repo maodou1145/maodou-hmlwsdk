@@ -34,7 +34,9 @@ import * as log from "./logger.js";
  * 图片素材择一：Lite 运行时对图片格式的支持随 API 级别变化 ——
  *   API < 10  只加载 BGRA 位图（.bin），.png 是给预览器/工具看的副本
  *   API >= 10 可直接读 .png，删除 .bin 不影响显示
- * 两类同时打进 treeHap 会白占体积，所以按目标 API 择一保留（见 resolveStripPolicy）。
+ * 但「不影响显示」不等于「不影响安装」：resources.index 里登记的资源在安装期
+ * 仍会按 .bin 校验，实测只留 .png 的包会安装失败。所以默认统一删 .png 留 .bin，
+ * 与所有实测可装包一致；`--strip-images bin` 仍可手动指定，但会给出警告。
  * 只过滤 zip 条目：磁盘上的中间产物、工程源码里的图片、以及 .bin 容器都保持原样，
  * 这样 .bin 容器的字节基准不被改动，也能随时用 --strip-images none 对照。
  */
@@ -71,15 +73,15 @@ export function run(taskContext) {
 /**
  * 决定 treeHap 里要剔除哪一类图片，返回要删掉的扩展名（不含点），null = 都保留。
  *
- *   auto（默认）→ API < 10 删 .png 留 .bin；API >= 10 删 .bin 留 .png
- *   png / bin   → 强制指定
+ *   auto（默认）→ 统一删 .png 留 .bin；所有实测可装包都带 .bin
+ *   png / bin   → 强制指定（bin 只留 png 会让安装器校验失败，慎用）
  *   none        → 两种都保留
  */
 export function resolveStripPolicy(taskContext) {
   const p = taskContext.stripImages ?? "auto";
   if (p === "none") return null;
   if (p === "png" || p === "bin") return p;
-  if (p === "auto") return Number(taskContext.apiLevel ?? 0) >= 10 ? "bin" : "png";
+  if (p === "auto") return "png";
   throw new Error(`未知的 --strip-images 策略：${p}`);
 }
 

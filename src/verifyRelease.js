@@ -202,6 +202,9 @@ export function run(taskContext) {
     const png = names.filter((n) => n.toLowerCase().endsWith(".png")).length;
     const bin = names.filter((n) => n.endsWith(".bin")).length;
     stats.treeHapImages = { png, bin, policy: taskContext.stripImages ?? "auto" };
+    if (png > 0 && bin === 0) {
+      warn("treeHap", "只有 .png、没有任何图片 .bin —— 安装期资源校验可能失败，建议 --strip-images auto");
+    }
     info(
       "treeHap",
       png > 0 && bin > 0

@@ -63,7 +63,7 @@ npm run build:verify -- <工程目录>
 
 | 策略 | 行为 |
 |---|---|
-| `auto` | API < 10 删 `.png` 留 `.bin`；API >= 10 删 `.bin` 留 `.png` |
+| `auto` | 统一删 `.png` 留 `.bin`（默认）。API 10+ 虽可直接读 PNG，但只留 PNG 会在安装期资源校验失败 |
 | `png` / `bin` | 强制删指定扩展名 |
 | `none` | 两种都保留，用于和旧产物对照 |
 
