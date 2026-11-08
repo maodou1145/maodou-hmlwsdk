@@ -97,17 +97,32 @@ function readPng(file) {
 /**
  * @param {Array} scanned scanResourceFiles() 的结果（原地修改 media.files）
  * @param {string} outDir 资源编译的输出目录
- * @returns {{generated:string[], iconSize?:string, smallSize?:string, reason?:string}}
+ * @returns {{generated:string[], iconSize?:string, smallSize?:string}}
+ * @throws 缺 base/media、缺 icon.png、icon.png 解不开、或补完仍缺任一图标时抛错终止构建
  */
 export function ensureAppIcons(scanned, outDir) {
   const result = { generated: [] };
   const base = scanned.find((c) => c.limitKey === "base");
   const media = base?.clusters.find((c) => c.cluster === "media");
-  if (!media) return { ...result, reason: "没有 base/media 资源簇" };
+  if (!media) {
+    throw new Error(
+      "[icon] 没有 base/media 资源簇 —— Lite Wearable 应用图标必须在 entry/src/main/resources/base/media/ 下"
+    );
+  }
 
   const iconFile = findPng(media, "icon.png");
+  if (!iconFile) {
+    throw new Error(
+      "[icon] 缺 icon.png（114x114）—— 缺它会安装失败并报「40.配置文件格式错误」，构建终止"
+    );
+  }
   const icon = readPng(iconFile);
-  if (!icon) return { ...result, reason: "没有可用的 icon.png（需 8bit 非隔行 PNG）" };
+  if (!icon) {
+    throw new Error(
+      `[icon] icon.png 读不出像素：${iconFile}\n` +
+        "      需 8bit、非隔行、非调色板的 PNG（否则没法校验尺寸，也没法生成 icon_small）"
+    );
+  }
 
   const genDir = path.join(outDir, ".generated");
   fs.mkdirSync(genDir, { recursive: true });
@@ -139,6 +154,14 @@ export function ensureAppIcons(scanned, outDir) {
 
   if (result.generated.length) {
     log.info(`应用图标已补: ${result.generated.join(" + ")}，随 resources.index 登记`);
+  }
+
+  // ── 强制检测：补完还缺任何一个，直接抛错终止构建 ─────────────────────
+  // 宁可不出包，也不要出一个装上就报「40.配置文件格式错误」的包。
+  for (const [name, size] of [["icon.png", ICON_SIZE], ["icon_small.png", ICON_SMALL_SIZE]]) {
+    if (!findPng(media, name)) {
+      throw new Error(`[icon] ${name}（${size}x${size}）缺失或生成失败 —— 构建终止（安装会报错误码 40）`);
+    }
   }
   return result;
 }

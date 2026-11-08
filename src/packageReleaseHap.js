@@ -73,9 +73,13 @@ export function run(taskContext) {
 /**
  * 决定 treeHap 里要剔除哪一类图片，返回要删掉的扩展名（不含点），null = 都保留。
  *
- *   auto（默认）→ 统一删 .png 留 .bin；所有实测可装包都带 .bin
- *   png / bin   → 强制指定（bin 只留 png 会让安装器校验失败，慎用）
- *   none        → 两种都保留
+ *   auto（默认）→ 统一删 .png 留 .bin；GM星露谷 / wanlian / dice10 三个真机可装包
+ *                的容器里一个 .png 都没有，只有 .bin，所以按 .bin 为准
+ *   png         → 强制删 .png 留 .bin（同 auto）
+ *   bin         → 强制删 .bin 留 .png；API 10+ 设备可直读 PNG，API<10 会缺图
+ *   none        → 两种都保留，包体最大
+ *
+ * 注意 `.png.bin` 双后缀：删 .png 时它因为以 .bin 结尾会被保留，这是期望行为。
  */
 export function resolveStripPolicy(taskContext) {
   const p = taskContext.stripImages ?? "auto";

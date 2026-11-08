@@ -24,9 +24,9 @@ import * as log from "../src/logger.js";
  *   --js-out <name>   覆盖 assets/js/<名字>（单组件工程有效）
  *
  * 图片素材择一（只影响进 .app 的 treeHap 条目，不改源码与中间产物）：
- *   --strip-images auto  默认，按目标 API 自动选：API<10 删 .png 留 .bin，API>=10 删 .bin 留 .png
+ *   --strip-images auto  默认，一律删 .png 留 .bin（三个真机可装包都只有 .bin）
  *   --strip-images png   强制删 .png 留 .bin
- *   --strip-images bin   强制删 .bin 留 .png
+ *   --strip-images bin   强制删 .bin 留 .png（API 10+ 可直读 png；API<10 设备会缺图）
  *   --strip-images none  两种都保留（用于和旧产物对照）
  *
  * 日志（统一前缀 `>maodouwsdk`，分级 INFO / WARN / ERROR / DEBUG）：

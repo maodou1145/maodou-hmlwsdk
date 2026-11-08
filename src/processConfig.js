@@ -63,19 +63,26 @@ export function mergeProfile(source, opts) {
     // 缺这些字段会在应用调测助手安装时报「40.配置文件格式错误」。
     const m = out.module ?? {};
     for (const ab of m.abilities ?? []) delete ab.homeAbility;
+    // 源码里已经有值的字段一律沿用，缺了才补默认值 —— 这里不做覆盖。
+    //   package      真包实测恒为 com.example.myapplication（与 app.bundleName 无关，
+    //                GM星露谷/wanlian/自制 dice10 三个包都是这个值），但它是构建期
+    //                占位符；工程自己写了就用工程的。
+    //   mainAbility  与 abilities[0].name 同值，真包都是 .MainAbility。
+    const known = ["deviceType", "abilities", "mainAbility", "distro", "distroFilter", "package", "js", "reqPermissions"];
     out.module = {
       deviceType: m.deviceType,
       abilities: m.abilities,
-      mainAbility: m.abilities?.[0]?.name ?? ".MainAbility",
+      mainAbility: m.mainAbility ?? m.abilities?.[0]?.name ?? ".MainAbility",
       distro: m.distro,
-      distroFilter: {
+      distroFilter: m.distroFilter ?? {
         screenShape: { value: ["circle", "rect"], policy: "include" },
         screenWindow: { value: ["466*466", "408*480"], policy: "include" }
       },
-      // 真包实测的模板值，与 bundleName 无关
-      package: "com.example.myapplication",
+      package: m.package ?? "com.example.myapplication",
       js: m.js,
-      ...(m.reqPermissions ? { reqPermissions: m.reqPermissions } : {})
+      ...(m.reqPermissions ? { reqPermissions: m.reqPermissions } : {}),
+      // 未知字段原样保留在末尾（不参与键序对照，我们的样例工程一个都没有）
+      ...Object.fromEntries(Object.entries(m).filter(([k]) => !known.includes(k)))
     };
   } else {
     for (const ab of out.module?.abilities ?? []) {

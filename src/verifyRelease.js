@@ -212,7 +212,9 @@ export function run(taskContext) {
     const bin = names.filter((n) => n.endsWith(".bin")).length;
     stats.treeHapImages = { png, bin, policy: taskContext.stripImages ?? "auto" };
     if (png > 0 && bin === 0) {
-      warn("treeHap", "只有 .png、没有任何图片 .bin —— 安装期资源校验可能失败，建议 --strip-images auto");
+      const msg = `treeHap 里只有 .png、没有任何图片 .bin（strip-images=${stats.treeHapImages.policy}）`;
+      if (apiLevel < 10) error("treeHap", `${msg} —— API ${apiLevel} 设备只读 .bin，图会全丢`);
+      else info("treeHap", `${msg} —— API 10+ 可直读 png，能显示`);
     }
     info(
       "treeHap",
@@ -222,24 +224,42 @@ export function run(taskContext) {
     );
   }
 
-  // Hvigor 应用图标：资源表登记 + 两种尺寸的 BGRA 位图
+  // Hvigor 应用图标：资源表登记 + 两种尺寸，缺任何一个都装不上（错误码 40）
+  // 注意：这里查的是磁盘上的 binSource，不受 --strip-images 影响（那个只挑 treeHap 条目）
   if (taskContext.layout === "hvigor") {
     const media = allFiles.filter((f) => f.replace(/\\/g, "/").includes("base/media"));
-    const expect = { "icon.bin": [114, 114], "icon_small.bin": [80, 80] };
-    for (const [name, [w, h]] of Object.entries(expect)) {
-      const f = media.find((p) => path.basename(p) === name);
-      if (!f) {
-        warn("app icons", `缺 ${name}，安装可能出现错误码 40`);
+    for (const [stem, [w, h]] of Object.entries({ icon: [114, 114], icon_small: [80, 80] })) {
+      const png = media.find((p) => path.basename(p).toLowerCase() === stem + ".png");
+      const bin = media.find((p) => path.basename(p).toLowerCase() === stem + ".bin");
+      if (!png && !bin) {
+        error("app icons", `缺 ${stem}.png / ${stem}.bin —— 安装会报「40.配置文件格式错误」`);
         continue;
       }
-      const r = inspectBin(fs.readFileSync(f));
-      if (!r.ok || r.width !== w || r.height !== h) {
-        warn("app icons", `${name} 应为 ${w}x${h}，实际 ${r.width}x${r.height}，可能导致安装错误码 40`);
+      if (png) {
+        const b = fs.readFileSync(png);
+        const isPng = b.length > 24 && b.readUInt32BE(0) === 0x89504e47;
+        const pw = isPng ? b.readUInt32BE(16) : 0;
+        const ph = isPng ? b.readUInt32BE(20) : 0;
+        if (!isPng) error("app icons", `${stem}.png 不是合法 PNG`);
+        else if (pw !== w || ph !== h) error("app icons", `${stem}.png 应为 ${w}x${h}，实际 ${pw}x${ph}`);
+      }
+      if (bin) {
+        const r = inspectBin(fs.readFileSync(bin));
+        if (!r.ok || r.width !== w || r.height !== h) {
+          error("app icons", `${stem}.bin 应为 ${w}x${h}，实际 ${r.width}x${r.height}`);
+        }
       }
     }
     const ri = allFiles.find((f) => f.endsWith("resources.index"));
-    if (ri && !fs.readFileSync(ri).toString("latin1").includes("icon_small")) {
-      warn("resources.index", "没有登记 icon_small，安装可能出现错误码 40");
+    if (!ri) {
+      error("resources.index", "产物里没有 resources.index");
+    } else {
+      const text = fs.readFileSync(ri).toString("latin1");
+      for (const name of ["icon", "icon_small"]) {
+        if (!new RegExp(`${name}\\.png`, "i").test(text)) {
+          error("resources.index", `没有登记 ${name}.png，安装会报「40.配置文件格式错误」`);
+        }
+      }
     }
   }
 
