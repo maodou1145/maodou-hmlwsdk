@@ -158,7 +158,7 @@ export function resolveComponents(moduleDir, config, jsOutOverride, opts = {}) {
     }
 
     const pages = comp.pages ?? [];
-    assertPagesExist(jsRoot, dirName, pages, i, opts.strictPages !== false);
+    assertPagesExist(jsRoot, dirName, pages, i);
 
     return {
       name: String(comp.name),
@@ -178,7 +178,7 @@ export function resolveComponents(moduleDir, config, jsOutOverride, opts = {}) {
  *
  * 页面路径形如 "pages/index/index"，对应 js/<组件>/pages/index/index.hml + .js。
  */
-function assertPagesExist(jsRoot, dirName, pages, compIndex, strict) {
+function assertPagesExist(jsRoot, dirName, pages, compIndex) {
   if (!pages.length) return;
 
   const pagesRoot = path.join(jsRoot, dirName, "pages");
@@ -190,20 +190,12 @@ function assertPagesExist(jsRoot, dirName, pages, compIndex, strict) {
     if (lacks.length) missing.push({ page, lacks });
   }
   if (missing.length) {
-    const detail =
-      missing
-        .map((m) => `  - "${m.page}"：js/${dirName}/pages/${String(m.page).replace(/^pages\//, "")}{${m.lacks.join(",")}} 不存在`)
-        .join("\n");
-    if (strict) {
-      throw new Error(
-        `config.json 的 module.js[${compIndex}].pages 登记了不存在的页面：\n` +
-          detail +
-          "\n原版 hvigor 同样会拒绝构建；删掉这条登记，或把页面源码补上（.hml + .js 都要有）"
-      );
-    }
-    // 老 Gradle 链路（API 5~7）不校验页面存在性，官方 devdemo 就带 3 个幽灵页面，照旧放过
-    log.warn(
-      `config.json 的 module.js[${compIndex}].pages 有 ${missing.length} 个页面在源码里不存在（Gradle 布局只告警）：\n` + detail
+    throw new Error(
+      `config.json 的 module.js[${compIndex}].pages 登记了不存在的页面：\n` +
+        missing
+          .map((m) => `  - "${m.page}"：js/${dirName}/pages/${String(m.page).replace(/^pages\//, "")}{${m.lacks.join(",")}} 不存在`)
+          .join("\n") +
+        "\n原版 hvigor 同样会拒绝构建；删掉这条登记，或把页面源码补上（.hml + .js 都要有）"
     );
   }
 
@@ -273,7 +265,7 @@ export function resolveProject(root, opts = {}) {
     throw new Error(`找不到 ${configPath}（layout=${layout}, module=${moduleName}）`);
   }
   const srcConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  const components = resolveComponents(moduleDir, srcConfig, opts.jsOut, { strictPages: isHvigor });
+  const components = resolveComponents(moduleDir, srcConfig, opts.jsOut);
 
   return {
     layout,

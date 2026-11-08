@@ -174,18 +174,14 @@ npm run build:verify -- <工程目录>
 ### 页面清单（幽灵页面）
 
 `config.json` 里 `module.js[].pages` 的每一条，都必须在源码里真实存在（`js/<组件>/pages/xxx/xxx.hml` + `.js`）。
-
-| 布局 | 行为 |
-|---|---|
-| Hvigor（API 8~12） | 缺页面直接**构建失败**，与原版 hvigor 一致 |
-| Gradle（API 5~7） | 只告警（官方 devdemo 自带 3 个幽灵页面，历史工程靠这条才能继续出包） |
+**任何布局都一样，缺一条就构建失败**，与原版 hvigor 行为一致。
 
 为什么必须拦：页面清单只被原样抄进 `manifest.json`，webpack 与 `.bc` 快照都按**实际存在的源码**产出，所以幽灵页面不会有任何文件进包。结果是 `manifest.json` 声明了它、包里却没有——构建全绿，真机 `router.replace` 到该页才白屏。
 
-自检里再查一遍产物（`assets/js/<组件>/<page>.js` 是否存在），Hvigor 判 ERROR、Gradle 判 WARN。
+自检里再查一遍产物（`assets/js/<组件>/<page>.js` 是否存在），缺了同样判 ERROR。
 
 反向同样拦：源码里有页面（`pages/xxx/xxx.hml`）但没写进 `config.json`，**构建失败**——
-这类页面会被打进包却路由不到，产物里多出无主文件。两种布局都拦。
+这类页面会被打进包却路由不到，产物里多出无主文件。
 
 ### 应用图标（安装错误码 40）
 
