@@ -24,10 +24,12 @@ import * as log from "../src/logger.js";
  *   --js-out <name>   覆盖 assets/js/<名字>（单组件工程有效）
  *
  * 图片素材择一（只影响进 .app 的 treeHap 条目，不改源码与中间产物）：
- *   --strip-images auto  默认，一律删 .png 留 .bin（三个真机可装包都只有 .bin）
- *   --strip-images png   强制删 .png 留 .bin
- *   --strip-images bin   强制删 .bin 留 .png（API 10+ 可直读 png；API<10 设备会缺图）
- *   --strip-images none  两种都保留（用于和旧产物对照）
+ *   --strip-images auto  默认，按工程布局分叉：
+ *                          Gradle（API 5~7）删 .png 留 .bin —— 这些设备只认 .bin
+ *                          Hvigor（API 8~12）删 .bin 留 .png —— API 10+ 可直读 PNG
+ *   --strip-images none  两种都保留（包体最大，用于对照）
+ *   删 .bin 时，没有同名 .png 兜底的 .bin 一律保留；应用图标永远双份
+ *   （Gradle 下给 bin、Hvigor 下给 png 都会直接报错，因为那会把图片删光）
  *
  * 日志（统一前缀 `>maodouwsdk`，分级 INFO / WARN / ERROR / DEBUG）：
  *   --verbose  展开 webpack 逐文件日志、NOTE、任务产物声明
@@ -125,7 +127,8 @@ log.info(
 );
 log.info(
   `apiVersion compatible=${project.compatibleSdkVersion} target=${project.compileSdkVersion} · ` +
-    `strip-images=${flags.stripImages ?? "auto"}`
+    `strip-images=${flags.stripImages ?? "auto"}` +
+    `（${project.layout === "hvigor" ? "Hvigor：默认删 .bin 留 .png" : "Gradle：默认删 .png 留 .bin"}）`
 );
 for (const c of project.components) {
   log.info(`Component ${c.name} → src js/${c.dirName} → out assets/js/${c.buildName}`);

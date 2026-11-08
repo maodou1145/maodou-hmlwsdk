@@ -73,19 +73,44 @@ export function run(taskContext) {
 /**
  * 决定 treeHap 里要剔除哪一类图片，返回要删掉的扩展名（不含点），null = 都保留。
  *
- *   auto（默认）→ 统一删 .png 留 .bin；腕上钓鱼 / wanlian / dice10 三个真机可装包
- *                的容器里一个 .png 都没有，只有 .bin，所以按 .bin 为准
- *   png         → 强制删 .png 留 .bin（同 auto）
- *   bin         → 强制删 .bin 留 .png；API 10+ 设备可直读 PNG，API<10 会缺图
- *   none        → 两种都保留，包体最大
+ * 默认值按工程布局分叉（API 版本不同，设备能读的东西也不同）：
  *
- * 注意 `.png.bin` 双后缀：删 .png 时它因为以 .bin 结尾会被保留，这是期望行为。
+ *   Gradle（API 5~7）→ 删 .png 留 .bin —— 这些设备只认 .bin
+ *     auto / png  → 删 .png
+ *     none        → 全留
+ *     bin         → 拒绝：删了 .bin 设备就没图了
+ *
+ *   Hvigor（API 8~12）→ 删 .bin 留 .png —— API 10+ 可直读 PNG，.bin 纯占体积
+ *     auto / bin  → 删 .bin
+ *     none        → 全留
+ *     png         → 拒绝：Hvigor 下的默认方向就是留 png，没有「删 png」这个选项
+ *
+ * 删 .bin 时只删「有同名 .png 兜底」的那些；没有 png 对照的 .bin 是这张图唯一的
+ * 副本，一律保留。应用图标（icon / icon_small）永远双份，不参与择一。
  */
 export function resolveStripPolicy(taskContext) {
   const p = taskContext.stripImages ?? "auto";
+  const hvigor = taskContext.layout === "hvigor";
+
   if (p === "none") return null;
-  if (p === "png" || p === "bin") return p;
-  if (p === "auto") return "png";
+  if (p === "auto") return hvigor ? "bin" : "png";
+
+  if (p === "png") {
+    if (hvigor) {
+      throw new Error(
+        "--strip-images png 在 Hvigor 工程下没有意义：默认就是删 .bin 留 .png。用 auto（默认）或 none（全留）"
+      );
+    }
+    return "png";
+  }
+  if (p === "bin") {
+    if (!hvigor) {
+      throw new Error(
+        "--strip-images bin 会把 Gradle 工程（API < 10）的图片删光：这些设备只读 .bin。用 auto（删 .png）或 none（全留）"
+      );
+    }
+    return "bin";
+  }
   throw new Error(`未知的 --strip-images 策略：${p}`);
 }
 
@@ -99,9 +124,61 @@ export function resolveStripPolicy(taskContext) {
  */
 const APP_ICON_RE = /\/base\/media\/icon(_small)?\.(png|bin)$/i;
 
+function fullPathOf(entry) {
+  return ((entry.relPath || "").replace(/^\//, "") + "/" + entry.fileName).replace(/^\//, "");
+}
+
 function isAppIcon(entry) {
-  const full = ((entry.relPath || "").replace(/^\//, "") + "/" + entry.fileName).replace(/^\//, "");
+  const full = fullPathOf(entry);
   return APP_ICON_RE.test(full.startsWith("/") ? full : "/" + full);
+}
+
+/**
+ * 计算要丢掉哪些图片条目。
+ *
+ * @param {Array} all sortEntries() 之后的条目
+ * @param {"png"|"bin"|null} dropExt 要删的扩展名，null = 全留
+ * @returns {{kept:Array, dropped:Array, icons:number, loneBins:number}}
+ */
+export function planStrip(all, dropExt) {
+  if (!dropExt) return { kept: all, dropped: [], icons: 0, loneBins: 0 };
+
+  const pngs = new Set(all.map(fullPathOf).filter((n) => n.toLowerCase().endsWith(".png")));
+  const dropped = [];
+  const kept = [];
+  let icons = 0;
+  let loneBins = 0;
+
+  for (const e of all) {
+    const name = e.fileName.toLowerCase();
+
+    // 图标只在「删 .bin」时豁免：Hvigor 包里 icon / icon_small 必须 png+bin 双份，
+    // 少一个装表就报 40。删 .png 时（Gradle 布局）图标跟普通素材一样处理。
+    if (isAppIcon(e) && dropExt === "bin") {
+      icons++;
+      kept.push(e);
+      continue;
+    }
+    if (!name.endsWith("." + dropExt)) {
+      kept.push(e);
+      continue;
+    }
+
+    // 删 .bin 时：有同名 png 才删。xxx.png.bin 对应 xxx.png；
+    // 没有 png 兜底的 .bin 是这张图唯一的副本，必须留
+    if (dropExt === "bin") {
+      const twin = fullPathOf(e).replace(/\.png\.bin$/i, ".png").replace(/\.bin$/i, ".png");
+      if (!pngs.has(twin)) {
+        loneBins++;
+        kept.push(e);
+        continue;
+      }
+    }
+
+    dropped.push(e);
+  }
+
+  return { kept, dropped, icons, loneBins };
 }
 
 /**
@@ -112,18 +189,16 @@ function isAppIcon(entry) {
  */
 function packTreeHap(taskContext) {
   const { config, paths } = taskContext;
-  const strip = resolveStripPolicy(taskContext);
+  const dropExt = resolveStripPolicy(taskContext);
   const all = sortEntries(collect(paths.binSource));
-  const kept = strip
-    ? all.filter((e) => !e.fileName.toLowerCase().endsWith("." + strip) || isAppIcon(e))
-    : all;
-  const keptIcons = strip ? all.filter((e) => isAppIcon(e)).length : 0;
+  const { kept, dropped, icons, loneBins } = planStrip(all, dropExt);
 
-  if (strip) {
+  if (dropExt) {
     log.info(
-      `strip-images=${taskContext.stripImages ?? "auto"} → 剔除 .${strip} ` +
-        `${all.length - kept.length} 个条目，treeHap 保留 ${kept.length} 个` +
-        (keptIcons ? `（其中 ${keptIcons} 个应用图标不参与择一）` : "")
+      `strip-images=${taskContext.stripImages ?? "auto"} → 剔除 .${dropExt} ` +
+        `${dropped.length} 个条目，treeHap 保留 ${kept.length} 个` +
+        (icons ? `（${icons} 个应用图标不参与择一）` : "") +
+        (loneBins ? `；${loneBins} 个没有 png 对照的 .bin 已保留` : "")
     );
   }
 

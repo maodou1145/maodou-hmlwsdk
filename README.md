@@ -87,17 +87,19 @@ npm run build:verify -- <工程目录>
 | `--heap <n>` | 评审脚本用的目标 JS heap 档位（64 / 256 / 512），默认 256 |
 
 `--strip-images` 只过滤进 `.app` 的 treeHap 条目，不删磁盘中间产物、不动工程源码 PNG、不改 `.bin` 容器。
+**默认方向按工程布局分叉**，因为两代设备能读的东西不一样：
 
-**应用图标是例外，永远不参与择一**：`base/media/icon.png`、`icon_small.png` 与它们的 `.bin` 一律双份保留。
-依据是官方可装包（腕上钓鱼）就是 `icon.png` + `icon.bin` + `icon_small.png` + `icon_small.bin` 四件齐全，
-实测只剩 `icon.bin` 的包装表直接报「40.配置文件格式错误」。
+| 布局 | `auto`（默认） | 可选 |
+|---|---|---|
+| Gradle（API 5~7） | 删 `.png` 留 `.bin`（图标也删 png，设备只读 `.bin`） | `none` 两种全留 |
+| Hvigor（API 8~12） | 删 `.bin` 留 `.png`（API 10+ 可直读 PNG） | `none` 两种全留 |
 
-| 策略 | 行为 |
-|---|---|
-| `auto` | 删 `.png` 留 `.bin`（默认），应用图标除外 |
-| `png` | 强制删 `.png` 留 `.bin`，应用图标除外 |
-| `bin` | 强制删 `.bin` 留 `.png`；API 10+ 可直读 PNG，API < 10 自检判 ERROR |
-| `none` | 两种都保留，用于和旧产物对照 |
+两条保护规则：
+
+- **删 `.bin` 时，应用图标不参与**：`icon` / `icon_small` 保持 png+bin 双份，缺一个装表报 40。
+- **删 `.bin` 时，没有同名 `.png` 兜底的 `.bin` 一律保留**——那种 bin 是这张图唯一的副本，删了图就没了。
+
+交叉选项直接报错：Gradle 下给 `bin`（会把图删光）、Hvigor 下给 `png`（Hvigor 的默认方向就是留 png）都会被拒绝并提示可用取值。
 
 ## 评审（外部 skill 脚本）
 
