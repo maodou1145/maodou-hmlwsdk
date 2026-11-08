@@ -107,6 +107,32 @@ export function run(taskContext) {
   const pngFiles = byExt(".png");
   const imgBins = byExt(".bin").filter((f) => !f.endsWith("entry-release-unsigned.bin"));
 
+  // ── 1b. config 里登记的页面，产物里必须真的存在 ───────────────────────
+  // 构建期 resolveProject 已经拦「源码里没有」的页面；这里再查一遍「打包后有没有落地」，
+  // 因为漏掉这一步就会产出幽灵页面：manifest.json 声明了该页，包里却没有它的文件，
+  // 构建全绿、真机跳过去白屏。
+  const pageOwners = (taskContext.components?.length
+    ? taskContext.components.map((c) => ({ buildName: c.buildName, pages: c.pages ?? [] }))
+    : jsModules.map((c) => ({ buildName: String(c.name).replace(/^\./, ""), pages: c.pages ?? [] }))
+  );
+  for (const { buildName, pages } of pageOwners) {
+    for (const page of pages) {
+      const base = path.join(paths.binSource, "assets", "js", buildName, ...String(page).split("/"));
+      if (!fs.existsSync(base + ".js")) {
+        // Hvigor（API 8+）按原版行为判 ERROR；老 Gradle 链路不校验页面存在性
+        // （官方 devdemo 自带 3 个幽灵页面），只告警
+        const hit = taskContext.layout === "hvigor" ? error : warn;
+        hit(
+          "pages",
+          `"${page}" 在产物里没有 .js（幽灵页面：manifest 声明了它，包里却没有，真机跳过去白屏）` +
+            (taskContext.layout === "hvigor" ? "" : " —— Gradle 布局只告警")
+        );
+      } else if (!fs.existsSync(base + ".bc")) {
+        warn("pages", `"${page}" 没有 .bc，走 JS 源码解释执行`);
+      }
+    }
+  }
+
   // ── 2. .bc 快照：best-effort，一律只警告、不阻断构建 ───────────────────
   stats.jsFiles = jsFiles.length;
   stats.bcFiles = bcFiles.length;

@@ -105,11 +105,19 @@ log.info(`Project ${path.resolve(projectDir)}`);
 
 const root = path.resolve(projectDir);
 
-const project = resolveProject(root, {
-  ...(Number.isFinite(flags.compatible) ? { compatible: flags.compatible } : {}),
-  ...(Number.isFinite(flags.target) ? { target: flags.target } : {}),
-  ...(flags.jsOut ? { jsOut: flags.jsOut } : {})
-});
+const project = await (async () => {
+  try {
+    return resolveProject(root, {
+      ...(Number.isFinite(flags.compatible) ? { compatible: flags.compatible } : {}),
+      ...(Number.isFinite(flags.target) ? { target: flags.target } : {}),
+      ...(flags.jsOut ? { jsOut: flags.jsOut } : {})
+    });
+  } catch (e) {
+    // 工程解析阶段的报错是「配置/源码不一致」，直接给人看结论，别甩栈
+    log.error(e.message);
+    process.exit(1);
+  }
+})();
 
 log.info(
   `Layout ${project.layout} · module ${project.moduleName} · ` +

@@ -3,6 +3,7 @@ import path from "path";
 
 import JSON5 from "json5";
 import { parseBuildGradle } from "./parseBuildGradle.js";
+import * as log from "./logger.js";
 
 /**
  * 工程布局探测 —— 让同一条构建链同时吃两种 Lite Wearable 工程。
@@ -131,7 +132,7 @@ function moduleFromHvigor(profilePath, root) {
  * "MainAbility" 还是 "default"。默认取去点后的目录名（带点开头在 zip 里是隐藏
  * 条目，且 abilities[].srcPath 明确是无点的），可用 --js-out 覆盖。
  */
-export function resolveComponents(moduleDir, config, jsOutOverride) {
+export function resolveComponents(moduleDir, config, jsOutOverride, opts = {}) {
   const jsModules = config?.module?.js ?? [];
   if (!jsModules.length) {
     throw new Error("config.json 里没有 module.js，取不到组件名和 pages");
@@ -156,13 +157,74 @@ export function resolveComponents(moduleDir, config, jsOutOverride) {
       );
     }
 
+    const pages = comp.pages ?? [];
+    assertPagesExist(jsRoot, dirName, pages, i, opts.strictPages !== false);
+
     return {
       name: String(comp.name),
       dirName,
       buildName: jsOutOverride && jsModules.length === 1 ? jsOutOverride : bare,
-      pages: comp.pages ?? []
+      pages
     };
   });
+}
+
+/**
+ * 校验 config.json 里登记的页面在源码里真的存在。
+ *
+ * 原版 hvigor 遇到「config 里写了、源码里没有」的页面会直接构建失败；这里对齐同样
+ * 的行为，否则会产出「幽灵页面」：manifest.json 里声明了该页，包里却没有它的
+ * .js/.bc —— 构建全绿，真机跳到该页才白屏。
+ *
+ * 页面路径形如 "pages/index/index"，对应 js/<组件>/pages/index/index.hml + .js。
+ */
+function assertPagesExist(jsRoot, dirName, pages, compIndex, strict) {
+  if (!pages.length) return;
+
+  const pagesRoot = path.join(jsRoot, dirName, "pages");
+  const missing = [];
+  for (const page of pages) {
+    const rel = String(page).replace(/^pages\//, "");
+    const base = path.join(pagesRoot, ...rel.split("/"));
+    const lacks = [".hml", ".js"].filter((ext) => !fs.existsSync(base + ext));
+    if (lacks.length) missing.push({ page, lacks });
+  }
+  if (missing.length) {
+    const detail =
+      missing
+        .map((m) => `  - "${m.page}"：js/${dirName}/pages/${String(m.page).replace(/^pages\//, "")}{${m.lacks.join(",")}} 不存在`)
+        .join("\n");
+    if (strict) {
+      throw new Error(
+        `config.json 的 module.js[${compIndex}].pages 登记了不存在的页面：\n` +
+          detail +
+          "\n原版 hvigor 同样会拒绝构建；删掉这条登记，或把页面源码补上（.hml + .js 都要有）"
+      );
+    }
+    // 老 Gradle 链路（API 5~7）不校验页面存在性，官方 devdemo 就带 3 个幽灵页面，照旧放过
+    log.warn(
+      `config.json 的 module.js[${compIndex}].pages 有 ${missing.length} 个页面在源码里不存在（Gradle 布局只告警）：\n` + detail
+    );
+  }
+
+  // 反向：源码里有页面、config 里没登记 —— 这些页会被打进包但路由不到
+  const orphans = [];
+  if (fs.existsSync(pagesRoot)) {
+    for (const dir of fs.readdirSync(pagesRoot, { withFileTypes: true })) {
+      if (!dir.isDirectory()) continue;
+      const sub = path.join(pagesRoot, dir.name);
+      for (const f of fs.readdirSync(sub, { withFileTypes: true })) {
+        if (!f.isFile() || !f.name.endsWith(".hml")) continue;
+        const page = `pages/${dir.name}/${f.name.replace(/\.hml$/, "")}`;
+        if (!pages.includes(page)) orphans.push(page);
+      }
+    }
+  }
+  if (orphans.length) {
+    log.warn(
+      `组件 ${dirName} 有页面没写进 config.json（会打进包但路由不到）：${orphans.join(", ")}`
+    );
+  }
 }
 
 /**
@@ -209,7 +271,7 @@ export function resolveProject(root, opts = {}) {
     throw new Error(`找不到 ${configPath}（layout=${layout}, module=${moduleName}）`);
   }
   const srcConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  const components = resolveComponents(moduleDir, srcConfig, opts.jsOut);
+  const components = resolveComponents(moduleDir, srcConfig, opts.jsOut, { strictPages: isHvigor });
 
   return {
     layout,
