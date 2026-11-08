@@ -57,8 +57,30 @@ export function mergeProfile(source, opts) {
     };
   }
 
-  for (const ab of out.module?.abilities ?? []) {
-    if (ab.homeAbility === undefined) ab.homeAbility = false;
+  if (opts.apiVersionCode != null) {
+    // Hvigor 工程的 config.json 结构与 Gradle 不同：真机可装包都带
+    // module.mainAbility / package / distroFilter，且 abilities 里没有 homeAbility。
+    // 缺这些字段会在应用调测助手安装时报「40.配置文件格式错误」。
+    const m = out.module ?? {};
+    for (const ab of m.abilities ?? []) delete ab.homeAbility;
+    out.module = {
+      deviceType: m.deviceType,
+      abilities: m.abilities,
+      mainAbility: m.abilities?.[0]?.name ?? ".MainAbility",
+      distro: m.distro,
+      distroFilter: {
+        screenShape: { value: ["circle", "rect"], policy: "include" },
+        screenWindow: { value: ["466*466", "408*480"], policy: "include" }
+      },
+      // 真包实测的模板值，与 bundleName 无关
+      package: "com.example.myapplication",
+      js: m.js,
+      ...(m.reqPermissions ? { reqPermissions: m.reqPermissions } : {})
+    };
+  } else {
+    for (const ab of out.module?.abilities ?? []) {
+      if (ab.homeAbility === undefined) ab.homeAbility = false;
+    }
   }
 
   return out;

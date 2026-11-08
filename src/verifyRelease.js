@@ -91,6 +91,15 @@ export function run(taskContext) {
     }
   }
 
+  // Hvigor 包缺这几个 module 字段时，安装期会报错误码 40（配置文件格式错误）
+  if (taskContext.layout === "hvigor") {
+    for (const key of ["mainAbility", "package", "distroFilter"]) {
+      if (config.module?.[key] === undefined) {
+        warn("config.json", `缺 module.${key}，安装可能出现「40.配置文件格式错误」`);
+      }
+    }
+  }
+
   const allFiles = walk(paths.binSource);
   const byExt = (ext) => allFiles.filter((f) => f.toLowerCase().endsWith(ext));
   const jsFiles = byExt(".js").filter((f) => f.includes(`${path.sep}assets${path.sep}js${path.sep}`));
